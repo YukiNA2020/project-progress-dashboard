@@ -61,7 +61,7 @@ npm run dev
 
 Open the URL printed by Vite (normally `http://127.0.0.1:5173`). The UI calls the API through Vite's local proxy. For production-mode serving, build the frontend with `npm run build`, then start Uvicorn with the command above and open `http://127.0.0.1:8000`.
 
-The service binds to loopback only. Local runtime state, virtual environments, dependencies, build output, logs, SQLite files, and `.env` files are excluded from Git. No project folder or model API is needed for Phase 0.
+The service binds to loopback only. Local runtime state, virtual environments, dependencies, build output, logs, SQLite files, and `.env` files are excluded from Git. SQLite data is written to the OS user data directory (`~/Library/Application Support/ProjectProgressDashboard` on macOS, `%LOCALAPPDATA%\\ProjectProgressDashboard` on Windows, or `$XDG_DATA_HOME/ProjectProgressDashboard` on Linux). Phase 1 stores only the metadata explicitly entered in the form; it does not read or modify project folders. You can enter a Windows path while developing on macOS; the path is saved as text and is not checked for existence.
 
 ## Documents
 

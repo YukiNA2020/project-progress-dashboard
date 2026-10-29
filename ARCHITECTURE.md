@@ -91,6 +91,13 @@ The browser never receives API secrets and does not directly read arbitrary loca
 - Frontend package versions are captured by `package-lock.json`; Python runtime dependencies are pinned in `backend/requirements.txt`.
 - Follow the OS-specific setup commands in `README.md`. Runtime databases and user data belong outside the source tree; no database is created in Phase 0.
 
+## Phase 1 implementation
+
+- SQLite stores explicitly entered project metadata under the operating system's per-user application data directory, outside this repository.
+- The API supports listing, creating, editing, archiving, restoring, and reading project records. Project paths are treated as strings; this lets users register Windows paths while developing on macOS without probing those paths.
+- The browser presents a month grid, project list, project form, and a detail view with a placeholder Phase timeline until Markdown scanning exists.
+- Project CRUD requests are limited to loopback Host/Origin values; the development API allows the local Vite origin.
+
 ---
 
 # 架构说明（中文版）

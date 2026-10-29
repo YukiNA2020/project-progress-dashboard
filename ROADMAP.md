@@ -32,6 +32,8 @@ Node.js is a development/build dependency for the frontend. Python runs the loca
 
 ## Phase 1 — Project registry and calendar UI
 
+**Status:** Implemented and checked on macOS on 2026-10-29; Windows-specific runtime behavior still needs verification on Windows.
+
 - Add project create and edit flows for name, full local folder path, planned start date, and planned end date.
 - Validate dates and required fields; allow Windows paths to be entered while developing on macOS without trying to read them on macOS.
 - Persist projects in SQLite. Support archive/unarchive instead of destructive delete.
