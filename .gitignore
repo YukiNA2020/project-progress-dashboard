@@ -1,0 +1,11 @@
+# Local secrets and runtime state
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.log
+.local/
+.data/
+.cache/
