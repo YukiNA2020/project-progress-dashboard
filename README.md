@@ -25,6 +25,44 @@ See [ROADMAP.md](ROADMAP.md) for the phased implementation plan and [ARCHITECTUR
 - Run one automatic scan on the first computer startup each day, with a manual refresh button.
 - Support configurable OpenAI and Anthropic API formats. Keep the app and its data local; make model requests only to the endpoint configured by the user.
 
+## Development (Phase 0)
+
+Prerequisites: Node.js 20+ and Python 3.9+. Run these commands from the repository root.
+
+macOS / Linux:
+
+```sh
+python3 -m venv backend/.venv
+source backend/.venv/bin/activate
+python -m pip install -r backend/requirements.txt
+npm ci
+```
+
+Windows PowerShell:
+
+```powershell
+py -3.9 -m venv backend/.venv
+backend\.venv\Scripts\Activate.ps1
+python -m pip install -r backend/requirements.txt
+npm ci
+```
+
+Start two terminals in the repository root. In terminal 1, activate the virtual environment as above, then run:
+
+```sh
+python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+In terminal 2:
+
+```sh
+npm run dev
+```
+
+Open the URL printed by Vite (normally `http://127.0.0.1:5173`). The UI calls the API through Vite's local proxy. For production-mode serving, build the frontend with `npm run build`, then start Uvicorn with the command above and open `http://127.0.0.1:8000`.
+
+The service binds to loopback only. Local runtime state, virtual environments, dependencies, build output, logs, SQLite files, and `.env` files are excluded from Git. No project folder or model API is needed for Phase 0.
+
 ## Documents
 
 - [PRODUCT.md](PRODUCT.md) — users, workflow, requirements, and MVP boundaries.

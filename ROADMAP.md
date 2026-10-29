@@ -19,7 +19,7 @@ Node.js is a development/build dependency for the frontend. Python runs the loca
 
 ## Phase 0 — Cross-platform project foundation
 
-**Status:** Product docs completed; technical implementation not started.
+**Status:** Completed on 2026-10-29. Product docs and the technical foundation are in place.
 
 - Create a Vite React + TypeScript frontend and a Python FastAPI backend in this repository.
 - Add a health endpoint and a minimal UI that calls it through a loopback-only local API.
@@ -28,7 +28,7 @@ Node.js is a development/build dependency for the frontend. Python runs the loca
 - Document macOS development commands and Windows setup commands.
 - Keep user data outside the source repository.
 
-**Exit:** The app starts locally on macOS and Windows from documented commands, binds only to loopback, and displays backend health. No project folder or model API is needed.
+**Exit:** The app starts locally on macOS and Windows from documented commands, binds only to loopback, and displays backend health. Production serving is supported by FastAPI mounting the Vite build. No project folder or model API is needed.
 
 ## Phase 1 — Project registry and calendar UI
 

@@ -83,6 +83,14 @@ The browser never receives API secrets and does not directly read arbitrary loca
 - Exact model output schema and retry/backoff behavior.
 - Windows startup installation/uninstallation flow and macOS follow-up.
 
+## Phase 0 implementation
+
+- The Vite development server binds to `127.0.0.1:5173` and proxies `/api` to the FastAPI service at `127.0.0.1:8000`.
+- FastAPI exposes `GET /api/health`. When a frontend build exists in `dist/`, it serves that build from `/`.
+- The Phase 0 screen displays the API health response and makes no project-file or model requests.
+- Frontend package versions are captured by `package-lock.json`; Python runtime dependencies are pinned in `backend/requirements.txt`.
+- Follow the OS-specific setup commands in `README.md`. Runtime databases and user data belong outside the source tree; no database is created in Phase 0.
+
 ---
 
 # 架构说明（中文版）
