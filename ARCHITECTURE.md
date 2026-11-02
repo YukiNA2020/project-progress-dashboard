@@ -79,7 +79,7 @@ The browser never receives API secrets and does not directly read arbitrary loca
 - Dependency versions and lockfile formats.
 - Windows behavior when `keyring` is installed; macOS currently uses `keyring` when present and the `0600` file otherwise.
 - Provider retry policy beyond the single attempt per project per scan.
-- Windows startup installation/uninstallation flow and macOS follow-up.
+- Real Windows login-startup verification; signed installers and Linux autostart remain deferred.
 
 ## Phase 0 implementation
 
@@ -188,6 +188,42 @@ The model must return one JSON object with `current_phase_ordinal`, `current_pha
 - `backend/verify_phase3.py` patches the transport with a fake, so no network or key is required. It covers: rules-only scans, agreement, provider 500/timeout/401, malformed JSON, unknown evidence id, quote mismatch, invented schedule date, phase disagreement, model-reported conflict, low confidence, schedule proposals from rules and from the model, an Anthropic round trip, the skipped case, database migration, and that project files stay byte-for-byte unchanged.
 - The same script asserts the request body contains neither the API key nor an absolute path, that `GET /api/provider` returns only a mask, and that the fallback credential file is `0600`.
 
+## Phase 4 implementation
+
+**Layout**
+
+- `app/system/` is the only place that branches on the operating system: `opener.py` (file manager), `windows_startup.py` (per-user Run key), `macos_startup.py` (LaunchAgent plist), and `__init__.py` (status, enable, disable, launcher command).
+- `app/daily.py` owns the once-a-day rule. `app/cli.py` is the command line entry point, and `backend/run.py` is a thin launcher that does not depend on the working directory.
+- `GET /api/system`, `POST /api/startup`, and `POST /api/projects/{id}/open-folder` expose the result to the UI.
+
+**Login startup**
+
+- Windows: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value name `ProjectProgressDashboard`, set to `"<python>" "<backend>\run.py" serve --open-browser`. It needs no administrator rights, is visible in Task Manager's startup tab, and `pythonw.exe` is used when it exists so no console window appears. The value is written through `winreg` with explicit key handles; no shell is involved.
+- macOS: `~/Library/LaunchAgents/com.projectprogressdashboard.dashboard.plist` with `RunAtLoad` true, `KeepAlive` false, and standard output/error pointing at the dashboard log. Enabling writes the plist, boots out a stale job, then runs `launchctl bootstrap gui/<uid>`. If launchctl refuses, the API returns the exact command for the user to run and keeps the plist in place.
+- Linux: reported as unsupported with the launch command shown; no autostart file is written.
+- The command is always built from `sys.executable` and the real `backend/run.py`, so moving the repository only requires toggling the entry again.
+
+**Daily automatic scan**
+
+- `daily_scans` is keyed by the local calendar date. `INSERT OR IGNORE` is the claim; zero changed rows means another start already claimed today. Four simultaneous processes produce exactly one claim.
+- A failed automatic scan still consumes the day, and the row records `failed` plus a safe message. Background retries would hide repeated failures, so retrying stays a user action.
+- `scan_runs.trigger` records `auto`, `manual`, or `cli`. `project_state.last_failure_at` records when a project last failed and survives later successes; `last_success_at` remains the retained state timestamp shown next to it.
+- The CLI sets `PROJECT_PROGRESS_DASHBOARD_AUTO_SCAN=1`; the FastAPI startup hook runs `daily.run_if_due()` in a daemon thread so the browser is not blocked while projects are scanned.
+
+**Single instance**
+
+- `app.cli.probe_running()` calls `/api/health` and checks the `service` marker, not just that the port is open. A second launch on the same port therefore opens the browser and exits instead of starting a competing service.
+
+**Opening a project folder**
+
+- The route accepts a project id only, then reads the registered path. The adapter refuses an empty path, a missing path, or a non-directory, and never runs when validation fails.
+- Commands are argument lists with `shell=False`: `open` on macOS, `explorer` on Windows, `xdg-open` on Linux. `explorer` returns a non-zero code even on success, so its exit code is ignored after the path check.
+
+**Verification**
+
+- `backend/verify_phase4.py` uses a fake `winreg` module, a fake `launchctl` runner, a temporary home directory, and local HTTP stubs. It covers the daily claim (including four concurrent processes), cross-day behaviour, failure timestamps, retained state, manual retry, every open-folder branch, Windows quoting, plist contents, launchctl fallback, single-instance detection, the API surface, and the upgrade of a Phase 1-era database.
+- The script never writes a real startup item and never calls the real `launchctl`.
+
 
 ---
 
@@ -272,7 +308,7 @@ React 界面呈现月历、项目详情和巡检摘要
 - 依赖版本和锁文件格式。
 - 安装 `keyring` 后 Windows 上的凭证行为；macOS 目前优先用 `keyring`，否则用 `0600` 文件。
 - 单个项目每次巡检只尝试一次之外的模型重试策略。
-- Windows 开机启动的安装／卸载流程及 macOS 后续支持。
+- 真实 Windows 登录启动的验证；签名安装程序和 Linux 自启动仍延后。
 
 ## Phase 2 实现说明
 
@@ -359,9 +395,45 @@ React 界面呈现月历、项目详情和巡检摘要
 - 旧数据库通过 `PRAGMA table_info` + `ALTER TABLE ... ADD COLUMN` 自动升级。
 - `GET /api/provider` 只返回配置与掩码；`PUT /api/provider` 省略 `api_key` 表示保留，传空串表示清除；`POST /api/provider/test` 复用同一适配器，可测试未保存的表单值而不落库。
 - `POST /api/scan` 支持 `use_model=false`，只跑规则。
-- 健康检查返回 `phase: 3`。
+- 健康检查返回当前阶段编号（Phase 4 起为 4）。
 
 **验证**
 
 - `backend/verify_phase3.py` 用假传输层替换真实请求，不需要网络或密钥。覆盖：只跑规则、双方一致、HTTP 500／超时／401、JSON 格式错误、证据编号不存在、引文对不上、凭空排期日期、阶段分歧、模型自报冲突、低置信、规则与模型的排期提议、Anthropic 往返、跳过的情形、数据库迁移，以及项目文件逐字节不变。
 - 同一脚本还断言请求体既不含密钥也不含绝对路径，`GET /api/provider` 只返回掩码，回退密钥文件权限为 `0600`。
+
+## Phase 4 实现说明
+
+**结构**
+
+- `app/system/` 是唯一按操作系统分支的地方：`opener.py`（文件管理器）、`windows_startup.py`（当前用户 Run 键）、`macos_startup.py`（LaunchAgent plist）、`__init__.py`（状态、启用、关闭、启动命令）。
+- `app/daily.py` 负责每天最多一次的规则；`app/cli.py` 是命令行入口；`backend/run.py` 是不依赖工作目录的轻量启动器。
+- `GET /api/system`、`POST /api/startup`、`POST /api/projects/{id}/open-folder` 把结果提供给界面。
+
+**登录启动**
+
+- Windows：写入 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `ProjectProgressDashboard`，值为 `"<python>" "<backend>\run.py" serve --open-browser`。不需要管理员权限，可在任务管理器“启动”标签关闭；存在 `pythonw.exe` 时优先使用，避免弹出控制台窗口。注册表通过 `winreg` 显式打开键写入，不经过 shell。
+- macOS：写入 `~/Library/LaunchAgents/com.projectprogressdashboard.dashboard.plist`，`RunAtLoad` 为真、`KeepAlive` 为假，标准输出与错误指向看板日志。启用时先 `bootout` 掉旧任务，再 `launchctl bootstrap gui/<uid>`；若 launchctl 拒绝，接口会返回可直接执行的命令，并保留 plist。
+- Linux：报告为不支持并展示启动命令，不写自启动文件。
+- 命令始终由 `sys.executable` 与真实的 `backend/run.py` 组成，移动仓库后重新开关一次即可。
+
+**每日自动巡检**
+
+- `daily_scans` 以本地日期为主键，用 `INSERT OR IGNORE` 领取；影响行数为 0 表示当天已被别的启动领取。四个并发进程只会有一个领取成功。
+- 自动巡检失败同样占用当天，记录 `failed` 与安全提示。后台自动重试会掩盖持续失败，所以重试保持为用户动作。
+- `scan_runs.trigger` 记录 `auto`／`manual`／`cli`；`project_state.last_failure_at` 记录项目最近一次失败时间，并在后续成功巡检后保留；`last_success_at` 仍是保留状态的时间。
+- CLI 会设置 `PROJECT_PROGRESS_DASHBOARD_AUTO_SCAN=1`；FastAPI 启动钩子在后台线程执行 `daily.run_if_due()`，巡检不会阻塞浏览器打开。
+
+**单实例**
+
+- `app.cli.probe_running()` 读取 `/api/health` 并核对 `service` 标记，而不是只看端口是否被占用。因此同端口第二次启动只会打开浏览器，不会产生第二个服务进程。
+
+**打开项目文件夹**
+
+- 接口只接受项目 ID，再读取已登记路径。适配器拒绝空路径、不存在路径和非文件夹，校验失败时不会执行任何命令。
+- 命令以参数列表传入且 `shell=False`：macOS 用 `open`，Windows 用 `explorer`，Linux 用 `xdg-open`。`explorer` 即使成功也返回非零码，因此在路径校验通过后忽略其退出码。
+
+**验证**
+
+- `backend/verify_phase4.py` 使用假 `winreg`、假 `launchctl`、临时 home 与本地 HTTP 桩，覆盖每日领取（含四个并发进程）、跨日行为、失败时间、保留状态、手动重试、打开文件夹各分支、Windows 引号处理、plist 内容、launchctl 回退、单实例识别、接口形态，以及 Phase 1 时期数据库的自动升级。
+- 脚本不会写入真实启动项，也不会调用真实 `launchctl`。

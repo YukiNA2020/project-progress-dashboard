@@ -33,6 +33,16 @@ def database_path() -> Path:
     return data_directory() / "dashboard.sqlite3"
 
 
+def log_directory() -> Path:
+    target = data_directory() / "logs"
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def log_path() -> Path:
+    return log_directory() / "dashboard.log"
+
+
 def now_iso() -> str:
     from datetime import datetime
 

@@ -73,6 +73,8 @@ Node.js is a development/build dependency for the frontend. Python runs the loca
 
 ## Phase 4 — Startup integration and daily operation
 
+**Status:** Implemented and checked on macOS on 2026-11-02. The Windows Run-key path is covered by a simulated-registry test; registering and launching it from a real Windows login still needs verification there.
+
 - Add Windows login startup integration that launches the local service and opens the browser.
 - Run at most one automatic scan per local calendar day, on the first startup that day.
 - Add manual refresh, scan summary, failure timestamp, retained last-success state, and retry.
@@ -176,6 +178,8 @@ Node.js 是前端开发／构建依赖，Python 用于运行本地服务。保�
 **退出条件：** 服务失败、响应格式错误、证据缺失和文档冲突均能显式提示，且不会静默覆盖上次状态。
 
 ## Phase 4 — 开机启动与日常运行
+
+**状态：** 已于 2026-11-02 在 macOS 实现并检查。Windows 的 Run 键路径由模拟注册表测试覆盖，真实 Windows 登录启动仍待在该系统上验证。
 
 - 增加 Windows 登录启动功能，启动本地服务并打开浏览器。
 - 每个本地自然日最多自动巡检一次，在当天首次启动时执行。

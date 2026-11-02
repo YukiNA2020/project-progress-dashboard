@@ -1,5 +1,5 @@
 import type { ScanRun } from '../types'
-import { timestampLabel } from '../lib/format'
+import { timestampLabel, triggerLabel } from '../lib/format'
 
 type Props = {
   run: ScanRun | null
@@ -34,7 +34,11 @@ export default function ScanBar({ run, scanning, projectCount, modelEnabled, onS
                   : '项目状态无更新'
               : '尚未巡检'}
           </strong>
-          <span className="scan-time">{run ? timestampLabel(run.finished_at || run.started_at) : `共 ${projectCount} 个项目待扫描`}</span>
+          <span className="scan-time">
+            {run
+              ? `${triggerLabel(run.trigger)} · ${timestampLabel(run.finished_at || run.started_at)}`
+              : `共 ${projectCount} 个项目待扫描`}
+          </span>
         </div>
         {run && (
           <div className="scan-meta">
@@ -43,6 +47,7 @@ export default function ScanBar({ run, scanning, projectCount, modelEnabled, onS
             {run.projects_unknown > 0 && <span>阶段未知 {run.projects_unknown}</span>}
             {run.projects_failed > 0 && <span>读取失败 {run.projects_failed}</span>}
             {modelFailed > 0 && <span className="meta-alert">模型失败 {modelFailed}</span>}
+            {failed && <span className="meta-alert">失败时间 {timestampLabel(run.finished_at || run.started_at)}</span>}
             {run.schedule_proposals > 0 && <span>排期变更 {run.schedule_proposals}</span>}
             <span>{run.model_enabled ? `模型核对 ${run.model_ok ?? 0}` : '仅本地规则'}</span>
           </div>

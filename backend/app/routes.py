@@ -13,14 +13,16 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 
-from . import config_store, service
+from . import config_store, daily, service, system
 from .db import connection
 from .providers import client
-from .schemas import DecisionInput, ProjectInput, ProviderInput
+from .schemas import DecisionInput, ProjectInput, ProviderInput, StartupInput
+from .settings import data_directory, log_path
 
 router = APIRouter(prefix="/api")
 
 _scan_lock = threading.Lock()
+APP_VERSION = "0.5.0"
 
 
 def _project_dict(row) -> dict:
@@ -51,6 +53,7 @@ def _state_summaries() -> Dict[str, dict]:
             "files_scanned": data["files_scanned"],
             "basis": data["current_basis"],
             "model_status": data.get("model_status") or "disabled",
+            "last_failure_at": data.get("last_failure_at"),
         }
     return summaries
 
@@ -69,6 +72,7 @@ EMPTY_STATE = {
     "files_scanned": 0,
     "basis": "none",
     "model_status": "disabled",
+    "last_failure_at": None,
 }
 
 
@@ -77,9 +81,10 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "project-progress-dashboard-api",
-        "phase": 3,
+        "phase": 4,
         "scanner": "read-only-markdown",
         "model": "openai-compatible + anthropic",
+        "version": APP_VERSION,
     }
 
 
@@ -178,6 +183,18 @@ def get_project_detail(project_id: str) -> dict:
     if detail["state"] is not None:
         detail["state"]["candidate_testing"] = bool(detail["state"]["candidate_testing"])
     return detail
+
+
+@router.post("/projects/{project_id}/open-folder")
+def open_project_folder(project_id: str) -> dict:
+    with connection() as db:
+        row = db.execute("SELECT folder_path FROM projects WHERE id = ?", (project_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    try:
+        return system.open_folder(row["folder_path"])
+    except system.OpenFolderError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 # ---------------------------------------------------------------------------
@@ -291,3 +308,34 @@ def decide(pending_id: int, payload: DecisionInput) -> dict:
         raise HTTPException(status_code=404, detail=str(error))
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error))
+
+
+# ---------------------------------------------------------------------------
+# System, login startup, and the daily automatic scan
+# ---------------------------------------------------------------------------
+
+
+@router.get("/system")
+def get_system() -> dict:
+    return {
+        "version": APP_VERSION,
+        "platform": system.platform_id(),
+        "platform_label": system.platform_label(),
+        "startup": system.startup_status(),
+        "daily": daily.status(),
+        "paths": {
+            "data": str(data_directory()),
+            "log": str(log_path()),
+        },
+        "frontend_ready": (system.repository_directory() / "dist" / "index.html").is_file(),
+    }
+
+
+@router.post("/startup")
+def set_startup(payload: StartupInput) -> dict:
+    try:
+        if payload.enabled:
+            return system.enable_startup()
+        return system.disable_startup()
+    except system.StartupError as error:
+        raise HTTPException(status_code=400, detail=str(error))

@@ -142,3 +142,31 @@ export function evidenceKindLabel(kind: string): string {
 export function fieldLabel(field: string): string {
   return field === 'planned_start' ? '计划开始日期' : field === 'planned_end' ? '计划结束日期' : field
 }
+
+export function triggerLabel(trigger: string | undefined): string {
+  switch (trigger) {
+    case 'auto':
+      return '自动巡检'
+    case 'cli':
+      return '命令行巡检'
+    case 'manual':
+      return '手动巡检'
+    default:
+      return '巡检'
+  }
+}
+
+export function dailyResultLabel(result: string | null | undefined): string {
+  switch (result) {
+    case 'running':
+      return '执行中'
+    case 'ok':
+      return '成功'
+    case 'partial':
+      return '部分失败'
+    case 'failed':
+      return '失败'
+    default:
+      return '尚未执行'
+  }
+}

@@ -56,3 +56,7 @@ class ProviderInput(BaseModel):
     @validator("provider", "base_url", "model", "api_key")
     def strip_optional(cls, value: Optional[str]) -> Optional[str]:
         return value.strip() if isinstance(value, str) else value
+
+
+class StartupInput(BaseModel):
+    enabled: bool

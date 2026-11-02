@@ -4,7 +4,7 @@ A local-first, open-source dashboard for tracking project schedules and phase pr
 
 ## Status
 
-Phase 0 (cross-platform foundation), Phase 1 (project registry and calendar), Phase 2 (read-only Markdown evidence scanner), and Phase 3 (OpenAI/Anthropic adapters with review rules) are implemented and checked on macOS. Windows runtime behavior still needs verification there.
+Phase 0 (cross-platform foundation), Phase 1 (project registry and calendar), Phase 2 (read-only Markdown evidence scanner), Phase 3 (OpenAI/Anthropic adapters with review rules), and Phase 4 (login startup, daily automatic scan, opening a project folder) are implemented and checked on macOS. The Windows startup path is covered by a simulated-registry test; registering and launching from a real Windows login still needs verification there.
 
 ## What the scanner reads
 
@@ -13,6 +13,15 @@ Phase 0 (cross-platform foundation), Phase 1 (project registry and calendar), Ph
 - Dates must include a year. Sentences with plan wording, and dates later than today, never make a project look fresher. File modification times are never used.
 - Conflicting documents become "Needs confirmation"; the last accepted state is kept and nothing is guessed.
 - Files are opened read-only. The scanner never writes, renames, or deletes anything in a project folder.
+
+## Startup and daily routine
+
+- `backend/run.py serve --open-browser` starts the local service, runs the daily scan when it is due, and opens the dashboard. It works from any working directory, which is what the login-startup entries rely on.
+- One automatic scan per local calendar day, on the first start of that day. A failed automatic scan is not retried in the background; use “立即巡检” to retry. The last accepted state is kept either way.
+- Windows: the “启动” panel writes `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\ProjectProgressDashboard`. No administrator rights are needed, and the entry can be switched off from Task Manager.
+- macOS: the panel writes `~/Library/LaunchAgents/com.projectprogressdashboard.dashboard.plist` and runs `launchctl bootstrap`. If the system refuses, the panel shows the exact command to run manually.
+- Launching a second copy while the service is already listening only opens the browser; it does not start a second service.
+- Logs go to `logs/dashboard.log` inside the app data directory; the panel shows the exact path.
 
 ## How model review works
 
@@ -77,7 +86,7 @@ In terminal 2:
 npm run dev
 ```
 
-Open the URL printed by Vite (normally `http://127.0.0.1:5173`). The UI calls the API through Vite's local proxy. For production-mode serving, build the frontend with `npm run build`, then start Uvicorn with the command above and open `http://127.0.0.1:8000`.
+Open the URL printed by Vite (normally `http://127.0.0.1:5173`). The UI calls the API through Vite's local proxy. For production-mode serving, build the frontend with `npm run build`, then run `backend/.venv/bin/python backend/run.py serve --open-browser`. The launcher starts Uvicorn on `127.0.0.1:8000`, performs the first scan of the day, and opens the browser; `--no-daily-scan` skips the scan.
 
 To check the scanner rules against the synthetic fixtures without touching your own data, run:
 
@@ -94,6 +103,14 @@ backend/.venv/bin/python backend/verify_phase3.py
 ```
 
 It drives the adapters with a fake transport and asserts that provider failures, malformed output, unknown citations, quotes not present in the source, invented dates, and rule/model disagreements are all visible and never replace the last accepted state. It also checks that the key stays out of request bodies and API responses.
+
+To check startup and daily behaviour without touching the real system settings, run:
+
+```sh
+backend/.venv/bin/python backend/verify_phase4.py
+```
+
+It uses a fake Windows registry, a fake `launchctl`, a temporary home directory, and local HTTP stubs. It asserts that repeated starts on the same day produce exactly one automatic scan, that a failed scan keeps the last successful state and can be retried, that a project folder is opened with the right argument list, and that no real startup item is created.
 
 The service binds to loopback only. Local runtime state, virtual environments, dependencies, build output, logs, SQLite files, and `.env` files are excluded from Git. SQLite data is written to the OS user data directory (`~/Library/Application Support/ProjectProgressDashboard` on macOS, `%LOCALAPPDATA%\\ProjectProgressDashboard` on Windows, or `$XDG_DATA_HOME/ProjectProgressDashboard` on Linux). Phase 2 reads Markdown from registered folders in read-only mode. A Windows path can be entered while developing on macOS; it is saved as text and is not accessed until the app runs on a computer that can reach that path.
 
@@ -116,7 +133,16 @@ The dashboard does not host project data, upload it to a dashboard service, or c
 
 ## 当前状态
 
-Phase 0（跨平台基础）、Phase 1（项目登记与日历）、Phase 2（只读 Markdown 证据扫描）与 Phase 3（OpenAI／Anthropic 适配器与复核规则）已在 macOS 实现并检查，Windows 上的运行行为仍待验证。
+Phase 0（跨平台基础）、Phase 1（项目登记与日历）、Phase 2（只读 Markdown 证据扫描）、Phase 3（OpenAI／Anthropic 适配器与复核规则）与 Phase 4（开机启动、每日自动巡检、打开项目文件夹）已在 macOS 实现并检查。Windows 的启动路径由模拟注册表测试覆盖，真实的 Windows 登录启动仍待在该系统上验证。
+
+## 启动与日常
+
+- `backend/run.py serve --open-browser` 会启动本地服务、在需要时执行当天第一次巡检并打开看板。它不依赖当前工作目录，开机启动项指向的就是这条命令。
+- 每个本地自然日最多自动巡检一次，在当天首次启动时执行。自动巡检失败不会在后台重试，请用“立即巡检”手动重试；两种情况都会保留上次已接受状态。
+- Windows：“启动”面板写入 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\ProjectProgressDashboard`，不需要管理员权限，可在任务管理器的“启动”标签关闭。
+- macOS：“启动”面板写入 `~/Library/LaunchAgents/com.projectprogressdashboard.dashboard.plist` 并执行 `launchctl bootstrap`；若系统拒绝，面板会显示需要手动执行的命令。
+- 服务已在运行时再启动一次，只会打开浏览器，不会产生第二个服务进程。
+- 日志写在应用数据目录下的 `logs/dashboard.log`，面板里会显示完整路径。
 
 ## 模型复核怎么做
 
@@ -139,6 +165,8 @@ Phase 0（跨平台基础）、Phase 1（项目登记与日历）、Phase 2（�
 运行 `backend/.venv/bin/python backend/verify_phase2.py` 可用合成样例自检上述规则，使用临时数据库，不会触碰你自己的数据。
 
 运行 `backend/.venv/bin/python backend/verify_phase3.py` 可用假传输层自检模型层，不需要网络或 API 密钥：接口失败、格式错误、证据编号不存在、引文对不上、凭空日期、与规则分歧都会显式暴露，且不会覆盖上次已接受状态；同时检查密钥不出现在请求体和接口响应里。
+
+运行 `backend/.venv/bin/python backend/verify_phase4.py` 可用假注册表、假 `launchctl`、临时 home 与本地 HTTP 桩自检启动与日常行为，不会写入真实启动项：同一天重复启动只产生一次自动巡检、失败保留上次成功状态且能手动重试、打开文件夹使用正确的参数列表。
 
 ## 技术路线
 

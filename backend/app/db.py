@@ -128,6 +128,15 @@ CREATE TABLE IF NOT EXISTS provider_settings (
     last_test_ok INTEGER,
     last_test_message TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS daily_scans (
+    scan_date TEXT PRIMARY KEY,
+    run_id TEXT,
+    result TEXT NOT NULL DEFAULT 'running',
+    message TEXT NOT NULL DEFAULT '',
+    started_at TEXT NOT NULL,
+    finished_at TEXT
+);
 """
 
 # Columns added after their table first shipped. ``ALTER TABLE ... ADD COLUMN``
@@ -143,11 +152,13 @@ ADDED_COLUMNS = {
         "model_citations": "TEXT NOT NULL DEFAULT '[]'",
         "model_error": "TEXT",
         "model_checked_at": "TEXT",
+        "last_failure_at": "TEXT",
     },
     "scan_runs": {
         "model_ok": "INTEGER NOT NULL DEFAULT 0",
         "model_failed": "INTEGER NOT NULL DEFAULT 0",
         "model_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "trigger": "TEXT NOT NULL DEFAULT 'manual'",
     },
 }
 

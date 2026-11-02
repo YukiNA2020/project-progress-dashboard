@@ -7,6 +7,7 @@ import ProjectForm from './components/ProjectForm'
 import ProjectList from './components/ProjectList'
 import ProviderForm from './components/ProviderForm'
 import ScanBar from './components/ScanBar'
+import StartupPanel from './components/StartupPanel'
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -15,6 +16,7 @@ export default function App() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [providerOpen, setProviderOpen] = useState(false)
+  const [startupOpen, setStartupOpen] = useState(false)
   const [provider, setProvider] = useState<ProviderSettings | null>(null)
   const [editing, setEditing] = useState<Project | null>(null)
   const [showArchived, setShowArchived] = useState(false)
@@ -77,6 +79,7 @@ export default function App() {
     setEditing(null)
     setDetailId(null)
     setProviderOpen(false)
+    setStartupOpen(false)
     setFormOpen(true)
   }
 
@@ -84,12 +87,21 @@ export default function App() {
     setDetailId(project.id)
     setFormOpen(false)
     setProviderOpen(false)
+    setStartupOpen(false)
   }
 
   function openProvider() {
     setDetailId(null)
     setFormOpen(false)
+    setStartupOpen(false)
     setProviderOpen(true)
+  }
+
+  function openStartup() {
+    setDetailId(null)
+    setFormOpen(false)
+    setProviderOpen(false)
+    setStartupOpen(true)
   }
 
   const activeProjects = projects.filter((project) => !project.archived)
@@ -118,6 +130,7 @@ export default function App() {
             event.preventDefault()
             setDetailId(null)
             setFormOpen(false)
+            setStartupOpen(false)
           }}
         >
           <span className="brand-mark">P</span>
@@ -133,6 +146,9 @@ export default function App() {
             title="配置模型抽取使用的接口与密钥"
           >
             {provider?.enabled ? `模型 · ${provider.model || '已启用'}` : '模型设置'}
+          </button>
+          <button className="quiet-button" onClick={openStartup} title="开机启动与每日自动巡检">
+            启动
           </button>
           <button className={`quiet-button ${showArchived ? 'selected' : ''}`} onClick={() => setShowArchived(!showArchived)}>
             {showArchived ? '隐藏归档' : '查看归档'}
@@ -187,10 +203,10 @@ export default function App() {
 
       <footer className="app-footer">
         <span>本地保存 · 只读巡检项目文件夹中的 Markdown</span>
-        <span>Phase 3 · 规则 + 模型复核，密钥只留在本机</span>
+        <span>Phase 4 · 开机启动、每日自动巡检、打开项目文件夹</span>
       </footer>
 
-      {(formOpen || detailId || providerOpen) && (
+      {(formOpen || detailId || providerOpen || startupOpen) && (
         <div
           className="modal-backdrop"
           onMouseDown={(event) => {
@@ -198,6 +214,7 @@ export default function App() {
               setFormOpen(false)
               setDetailId(null)
               setProviderOpen(false)
+              setStartupOpen(false)
             }
           }}
         >
@@ -206,6 +223,14 @@ export default function App() {
               onClose={() => setProviderOpen(false)}
               onSaved={(saved) => {
                 setProvider(saved)
+                setDetailKey((value) => value + 1)
+              }}
+            />
+          ) : startupOpen ? (
+            <StartupPanel
+              onClose={() => setStartupOpen(false)}
+              onChanged={() => {
+                void loadAll()
                 setDetailKey((value) => value + 1)
               }}
             />

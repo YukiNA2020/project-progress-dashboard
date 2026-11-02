@@ -12,6 +12,7 @@ export type ProjectState = {
   files_scanned: number
   basis?: string
   model_status?: 'disabled' | 'ok' | 'invalid' | 'failed' | 'skipped' | string
+  last_failure_at?: string | null
 }
 
 export type Project = {
@@ -97,6 +98,7 @@ export type ScanRun = {
   model_ok?: number
   model_failed?: number
   model_enabled?: boolean
+  trigger?: 'manual' | 'auto' | 'cli' | string
   changes: ScanChange[]
   message: string
 }
@@ -126,6 +128,7 @@ export type StateRow = {
   notes: string[]
   scanned_at: string | null
   last_success_at: string | null
+  last_failure_at: string | null
   model_status: 'disabled' | 'ok' | 'invalid' | 'failed' | 'skipped' | string
   model_provider: string | null
   model_name: string | null
@@ -185,4 +188,43 @@ export type ProviderTest = {
   provider: string
   model: string
   endpoint_host: string
+}
+
+export type StartupInfo = {
+  platform: 'windows' | 'macos' | 'linux' | string
+  platform_label: string
+  supported: boolean
+  enabled: boolean
+  command: string
+  location: string
+  note: string
+  manual_step: string
+}
+
+export type DailyStatus = {
+  today: string
+  ran_today: boolean
+  today_result: string | null
+  today_started_at: string | null
+  today_finished_at: string | null
+  last_date: string | null
+  last_result: string | null
+  last_run_id: string | null
+  last_finished_at: string | null
+}
+
+export type SystemStatus = {
+  version: string
+  platform: string
+  platform_label: string
+  startup: StartupInfo
+  daily: DailyStatus
+  paths: { data: string; log: string }
+  frontend_ready: boolean
+}
+
+export type OpenFolderResult = {
+  opened: boolean
+  path: string
+  handler: string
 }

@@ -1,4 +1,5 @@
 import type {
+  OpenFolderResult,
   Project,
   ProjectDetailData,
   ProjectInput,
@@ -6,6 +7,8 @@ import type {
   ProviderSettings,
   ProviderTest,
   ScanRun,
+  StartupInfo,
+  SystemStatus,
 } from '../types'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -59,4 +62,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload ?? {}),
     }),
+
+  getSystem: () => request<SystemStatus>('/api/system'),
+
+  setStartup: (enabled: boolean) =>
+    request<StartupInfo>('/api/startup', { method: 'POST', body: JSON.stringify({ enabled }) }),
+
+  openFolder: (id: string) => request<OpenFolderResult>(`/api/projects/${id}/open-folder`, { method: 'POST' }),
 }

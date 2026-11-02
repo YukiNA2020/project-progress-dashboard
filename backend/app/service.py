@@ -246,8 +246,8 @@ def _store_success(
                    newest_record_source, files_scanned, evidence_count, scan_error, notes,
                    model_status, model_provider, model_name, model_confidence, model_summary,
                    model_citations, model_error, model_checked_at,
-                   scanned_at, last_success_at, updated_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   last_failure_at, scanned_at, last_success_at, updated_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 project["id"],
                 decision.status,
@@ -279,6 +279,7 @@ def _store_success(
                 _citation_payload(decision),
                 decision.model_error or None,
                 model_checked_at,
+                previous.get("last_failure_at") if previous else None,
                 stamp,
                 stamp,
                 stamp,
@@ -359,15 +360,18 @@ def _store_failure(project: dict, message: str) -> None:
         ).fetchone()
         if existing is None:
             db.execute(
-                """INSERT INTO project_state (project_id, status, reason, scan_error, scanned_at, updated_at)
-                   VALUES (?, 'unknown', ?, ?, ?, ?)""",
-                (project["id"], message, message, stamp, stamp),
+                """INSERT INTO project_state
+                       (project_id, status, reason, scan_error, last_failure_at, scanned_at, updated_at)
+                   VALUES (?, 'unknown', ?, ?, ?, ?, ?)""",
+                (project["id"], message, message, stamp, stamp, stamp),
             )
         else:
             # Keep every previously accepted value; only record the failure.
             db.execute(
-                "UPDATE project_state SET scan_error = ?, scanned_at = ?, updated_at = ? WHERE project_id = ?",
-                (message, stamp, stamp, project["id"]),
+                """UPDATE project_state
+                   SET scan_error = ?, last_failure_at = ?, scanned_at = ?, updated_at = ?
+                   WHERE project_id = ?""",
+                (message, stamp, stamp, stamp, project["id"]),
             )
 
 
@@ -475,7 +479,11 @@ def project_detail(project_id: str) -> Optional[dict]:
     }
 
 
-def scan_all(project_ids: Optional[Sequence[str]] = None, use_model: Optional[bool] = None) -> dict:
+def scan_all(
+    project_ids: Optional[Sequence[str]] = None,
+    use_model: Optional[bool] = None,
+    trigger: str = "manual",
+) -> dict:
     run_id = str(uuid4())
     started = now_iso()
     projects = active_projects(project_ids)
@@ -562,8 +570,8 @@ def scan_all(project_ids: Optional[Sequence[str]] = None, use_model: Optional[bo
             """INSERT INTO scan_runs (
                    id, started_at, finished_at, result, projects_total, projects_ok,
                    projects_needing_confirmation, projects_unknown, projects_failed,
-                   schedule_proposals, changes, message, model_ok, model_failed, model_enabled
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   schedule_proposals, changes, message, model_ok, model_failed, model_enabled, trigger
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id,
                 started,
@@ -580,6 +588,7 @@ def scan_all(project_ids: Optional[Sequence[str]] = None, use_model: Optional[bo
                 counts["model_ok"],
                 counts["model_failed"],
                 int(provider_settings is not None),
+                trigger if trigger in ("manual", "auto", "cli") else "manual",
             ),
         )
 
@@ -598,6 +607,7 @@ def scan_all(project_ids: Optional[Sequence[str]] = None, use_model: Optional[bo
         "model_ok": counts["model_ok"],
         "model_failed": counts["model_failed"],
         "model_enabled": provider_settings is not None,
+        "trigger": trigger if trigger in ("manual", "auto", "cli") else "manual",
         "changes": changes,
         "message": message,
         "projects": results,

@@ -17,5 +17,9 @@ venv/
 .data/
 .cache/
 
+# OS metadata created by the file manager
+.DS_Store
+Thumbs.db
+
 # Local agent/project notes, not application source
 .workbuddy/

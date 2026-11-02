@@ -211,6 +211,34 @@ select { font: inherit; }
 .citation-item small { color: #a0a8b5; font-size: 9px; }
 .citation-tag { padding: 2px 6px; color: #4c5fb8; background: #eaeefe; border-radius: 4px; font-size: 9px; }
 
+/* ---------- Phase 4: startup and daily routine ---------- */
+label.switch-row { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 11px 12px; color: #566174; background: #f8f9fd; border: 1px solid #ebeff6; border-radius: 8px; font-size: 11px; font-weight: 600; }
+label.switch-row input { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; accent-color: #465ed8; }
+label.switch-row span { display: flex; flex-direction: column; gap: 4px; }
+label.switch-row small { margin-top: 0; color: #a0a8b5; font-size: 10px; font-weight: 400; line-height: 1.6; }
+label.switch-row.switch-disabled { opacity: .6; }
+label.switch-row.switch-disabled span { cursor: default; }
+.startup-command { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.startup-command small, .startup-paths small { color: #98a1b0; font-size: 9px; }
+.startup-command code, .startup-paths code { display: block; overflow-wrap: anywhere; padding: 8px 10px; color: #6f7a8d; background: #f7f8fb; border-radius: 6px; font-size: 9.5px; line-height: 1.55; }
+.startup-daily { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; background: #f8f9fd; border: 1px solid #ebeff6; border-radius: 8px; }
+.startup-daily div { display: flex; flex-direction: column; gap: 4px; }
+.startup-daily strong { color: #3c4759; font-size: 11.5px; }
+.startup-daily small { color: #98a1b0; font-size: 9.5px; }
+.daily-dot { width: 8px; height: 8px; flex: 0 0 auto; margin-top: 4px; border-radius: 50%; }
+.startup-command code { white-space: pre; overflow-x: auto; overflow-wrap: normal; }
+.daily-dot.dot-good { background: #46a37c; }
+.daily-dot.dot-warn { background: #d69547; }
+.daily-dot.dot-bad { background: #cf6a6a; }
+.daily-dot.dot-idle { background: #ccd3de; }
+.startup-paths { display: flex; flex-direction: column; gap: 8px; }
+.startup-paths div { display: flex; flex-direction: column; gap: 3px; }
+.folder-row { display: flex; align-items: flex-start; gap: 10px; }
+.folder-row code { flex: 1 1 auto; margin: 0; }
+.folder-row .quiet-button { flex: 0 0 auto; }
+.folder-notice { margin-top: 8px; overflow-wrap: anywhere; }
+.test-result code { overflow-wrap: anywhere; margin-top: 4px; font-size: 10px; }
+
 @media (max-width: 760px) {
   .app-shell { padding: 0 17px 24px; }
   .topbar { height: 65px; }
@@ -229,6 +257,8 @@ select { font: inherit; }
   .pending-item { flex-direction: column; }
   .pending-actions { flex-direction: row; justify-content: flex-end; }
   .provider-grid { grid-template-columns: 1fr; }
+  .folder-row { flex-direction: column; }
+  .folder-row .quiet-button { width: 100%; }
   .app-footer { gap: 12px; font-size: 9px; }
 }
 @media (max-width: 430px) {

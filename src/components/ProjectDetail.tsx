@@ -29,6 +29,8 @@ export default function ProjectDetail({ projectId, refreshKey, onClose, onEdit, 
   const [detail, setDetail] = useState<ProjectDetailData | null>(null)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [opening, setOpening] = useState(false)
+  const [folderNotice, setFolderNotice] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -53,6 +55,20 @@ export default function ProjectDetail({ projectId, refreshKey, onClose, onEdit, 
       setError(err instanceof Error ? err.message : '处理失败')
     } finally {
       setBusyId(null)
+    }
+  }
+
+  async function openFolder() {
+    if (!project) return
+    setOpening(true)
+    setFolderNotice('')
+    try {
+      const result = await api.openFolder(project.id)
+      setFolderNotice(`已在系统文件管理器中打开：${result.path}`)
+    } catch (err) {
+      setFolderNotice(err instanceof Error ? err.message : '无法打开文件夹')
+    } finally {
+      setOpening(false)
     }
   }
 
@@ -83,7 +99,13 @@ export default function ProjectDetail({ projectId, refreshKey, onClose, onEdit, 
       {state?.scan_error && (
         <div className="banner banner-error">
           <strong>本次巡检未能读取项目文件夹</strong>
-          <span>{state.scan_error} · 已保留上次成功状态（{timestampLabel(state.last_success_at)}）</span>
+          <span>
+            {state.scan_error} · 失败时间 {timestampLabel(state.last_failure_at || state.scanned_at)}
+            {state.last_success_at
+              ? ` · 已保留上次成功状态（${timestampLabel(state.last_success_at)}）`
+              : ' · 这个项目还没有成功巡检过，没有可保留的历史状态'}
+          </span>
+          <span>可以在下面的“项目文件夹”里打开确认路径，或修正路径后重新巡检。</span>
         </div>
       )}
 
@@ -100,7 +122,10 @@ export default function ProjectDetail({ projectId, refreshKey, onClose, onEdit, 
           <strong>模型未确认本次结果</strong>
           <span className="banner-reason">{state?.reason}</span>
           <span>
-            已保留上次已接受的状态（{timestampLabel(state?.last_success_at)}）。可在右上角“模型设置”里测试连接或更换模型后重试。
+            {state?.last_success_at
+              ? `已保留上次已接受的状态（${timestampLabel(state.last_success_at)}）。`
+              : '这个项目还没有成功推进过状态，本次没有覆盖任何已有结论。'}
+            可在右上角“模型设置”里测试连接或更换模型后重试。
           </span>
         </div>
       )}
@@ -328,7 +353,13 @@ export default function ProjectDetail({ projectId, refreshKey, onClose, onEdit, 
 
       <div className="detail-block">
         <h3>项目文件夹</h3>
-        <code>{project?.folder_path}</code>
+        <div className="folder-row">
+          <code>{project?.folder_path}</code>
+          <button className="quiet-button" onClick={() => void openFolder()} disabled={opening || !project}>
+            {opening ? '打开中…' : '打开文件夹'}
+          </button>
+        </div>
+        {folderNotice && <p className="hint folder-notice">{folderNotice}</p>}
       </div>
 
       {project && (
