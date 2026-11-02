@@ -16,3 +16,6 @@ venv/
 .local/
 .data/
 .cache/
+
+# Local agent/project notes, not application source
+.workbuddy/

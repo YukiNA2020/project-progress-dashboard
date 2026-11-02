@@ -35,7 +35,7 @@ Node.js is a development/build dependency for the frontend. Python runs the loca
 **Status:** Implemented and checked on macOS on 2026-10-29; Windows-specific runtime behavior still needs verification on Windows.
 
 - Add project create and edit flows for name, full local folder path, planned start date, and planned end date.
-- Validate dates and required fields; allow Windows paths to be entered while developing on macOS without trying to read them on macOS.
+- Have users enter the full folder path manually. Validate dates and required fields; allow Windows paths to be entered while developing on macOS, save them as text, and do not try to access them on macOS.
 - Persist projects in SQLite. Support archive/unarchive instead of destructive delete.
 - Render the home page as a month-oriented calendar: dates run left to right, projects are ordered by start date, and each project is a distinct color bar spanning its start and end dates.
 - Display the current phase label when one is available; Phase 1 may use user-entered/sample state until the scanner exists.
@@ -45,6 +45,8 @@ Node.js is a development/build dependency for the frontend. Python runs the loca
 **Exit:** A user can add, edit, archive, restore, and inspect synthetic projects; dates align correctly across month boundaries; data survives app restart; the UI works on macOS and Windows. No model API or project Markdown scan is required.
 
 ## Phase 2 — Read-only Markdown evidence scanner
+
+**Status:** Implemented and checked on macOS on 2026-11-02; Windows-specific runtime behavior still needs verification on Windows.
 
 - Read Markdown files only under registered, non-archived project paths.
 - Exclude dependency/build/system directories by default, including `.git`, `node_modules`, `dist`, and `build`.
@@ -56,6 +58,8 @@ Node.js is a development/build dependency for the frontend. Python runs the loca
 **Exit:** Synthetic Markdown fixtures demonstrate that dated updates are ordered correctly, conflicts become “Needs confirmation,” and source files remain unchanged.
 
 ## Phase 3 — Model providers and review rules
+
+**Status:** Implemented and checked on macOS on 2026-11-02; Windows-specific runtime behavior still needs verification on Windows.
 
 - Implement OpenAI and Anthropic API adapters with locally configurable base URL, model name, and API key.
 - Store secrets outside source control and keep model calls in the backend, not the browser.
@@ -99,7 +103,7 @@ Node.js is a development/build dependency for the frontend. Python runs the loca
 
 ## 交付方式
 
-应用优先本地运行，今晚在 macOS 开发，明天从同一 GitHub 仓库切换到 Windows 继续。业务逻辑与数据模型保持平台中立；开机启动和打开文件夹通过系统适配器隔离。完成第一阶段 UI 前不依赖真实项目文件夹或模型 API。
+应用优先本地运行，可在一台电脑上从同一仓库开发；业务逻辑与数据模型保持平台中立，开机启动和打开文件夹通过系统适配器隔离。开发和验证可分阶段在 macOS 与 Windows 上进行。完成第一阶段 UI 前不依赖真实项目文件夹或模型 API。
 
 ## 技术基线
 
@@ -116,7 +120,7 @@ Node.js 是前端开发／构建依赖，Python 用于运行本地服务。保�
 
 ## Phase 0 — 跨平台项目基础
 
-**状态：** 产品文档已完成；技术实现尚未开始。
+**状态：** 已于 2026-10-29 完成。产品文档和技术基础已就绪。
 
 - 在本仓库创建 Vite React + TypeScript 前端和 Python FastAPI 后端。
 - 增加健康检查接口，以及一个通过本地 API 获取状态的最小界面。
@@ -127,10 +131,13 @@ Node.js 是前端开发／构建依赖，Python 用于运行本地服务。保�
 
 **退出条件：** 按文档命令可在 macOS 和 Windows 本地启动；服务只监听回环地址，界面能显示后端健康状态。不需要项目文件夹或模型 API。
 
+**状态：** 已于 2026-10-29 在 macOS 实现并检查；Windows 上的运行行为仍待验证。
+
 ## Phase 1 — 项目登记与日历界面
 
 - 添加项目新增与编辑流程，字段为名称、完整本地文件夹路径、计划开始日期和计划结束日期。
-- 校验必填字段与日期；在 macOS 开发时允许输入 Windows 路径，但不尝试在 macOS 读取它。
+- 用户手动填写完整文件夹路径。校验必填字段与日期；在 macOS 开发时允许输入 Windows 路径，将其作为文本保存，不尝试在 macOS 访问。
+- 扫描器运行时，用户需登记看板所在电脑实际可访问的路径；后续可评估系统文件夹选择器，当前不要求实现拖拽或自动获取路径。
 - 将项目持久化到 SQLite。支持归档／恢复，不做破坏性删除。
 - 首页按月显示日历：日期从左至右，项目按开始日期从上至下排列；每个项目使用单独颜色的色块覆盖其起止日期。
 - 如果已知当前 Phase，则在色块上显示；扫描器完成前可使用用户填写的示例状态。
@@ -139,7 +146,11 @@ Node.js 是前端开发／构建依赖，Python 用于运行本地服务。保�
 
 **退出条件：** 用户可新增、编辑、归档、恢复并查看合成项目；跨月日期显示正确；重启应用后数据仍存在；macOS 和 Windows 界面可用。不依赖模型 API 或 Markdown 扫描。
 
+**状态：** 已于 2026-10-29 在 macOS 实现并检查；Windows 上的运行行为仍待验证。
+
 ## Phase 2 — 只读 Markdown 证据扫描
+
+**状态：** 已于 2026-11-02 在 macOS 实现并检查；Windows 上的运行行为仍待验证。
 
 - 只读取已登记且未归档项目路径下的 Markdown 文件。
 - 默认排除 `.git`、`node_modules`、`dist` 和 `build` 等依赖／构建／系统目录。
@@ -151,6 +162,8 @@ Node.js 是前端开发／构建依赖，Python 用于运行本地服务。保�
 **退出条件：** 合成 Markdown 样例证明日期顺序正确、冲突会标“待确认”，且源文件保持不变。
 
 ## Phase 3 — 模型服务商与复核规则
+
+**状态：** 已于 2026-11-02 在 macOS 实现并检查；Windows 上的运行行为仍待验证。
 
 - 实现 OpenAI 与 Anthropic API 适配器，可在本地配置 API 地址、模型名和 API 密钥。
 - 密钥不进源码库；模型调用放在后端，不从浏览器直接发起。
