@@ -10,7 +10,8 @@ Phase 0 (cross-platform foundation), Phase 1 (project registry and calendar), Ph
 
 - Markdown only, and only inside project folders you register. `.git`, `node_modules`, `dist`, `build`, dependency, cache, and hidden directories are skipped.
 - It records explicit dated progress, the phase sequence and current phase, phase dates when documented, a testing label, and candidate schedule changes — always with the source path, heading, and a short excerpt.
-- Dates must include a year. Sentences with plan wording, and dates later than today, never make a project look fresher. File modification times are never used.
+- Phases come from `Phase` / `阶段` / `Milestone` headings, or from a milestone overview table inside a phase/roadmap section plus an explicit `当前阶段` row. `M0` maps to phase 0; task-card IDs such as `M0-01` are never treated as phases.
+- Dates must include a year. Sentences with plan wording, and dates later than today, never make a project look fresher. File modification times are never used. A plan used as a noun (for example "the MVP plan landed") is not treated as future wording when it describes a completed event.
 - Conflicting documents become "Needs confirmation"; the last accepted state is kept and nothing is guessed.
 - Files are opened read-only. The scanner never writes, renames, or deletes anything in a project folder.
 
@@ -158,7 +159,8 @@ Phase 0（跨平台基础）、Phase 1（项目登记与日历）、Phase 2（�
 
 - 只读 Markdown，且只在已登记的项目文件夹内读取；跳过 `.git`、`node_modules`、`dist`、`build`、依赖／缓存与隐藏目录。
 - 抽取带明确日期的进展、Phase 顺序与当前阶段、文档中记录的阶段日期、测试标记和候选排期变化，并始终保留来源路径、标题与简短原文。
-- 日期必须带年份；含计划措辞的语句和晚于今天的日期都不会让项目显得更新。文件修改时间从不参与判断。
+- 阶段可以来自 `Phase`／`阶段`／`Milestone` 标题，也可以来自“阶段／里程碑／Roadmap”章节下的里程碑总览表配合一行明确的“当前阶段”。`M0` 按阶段 0 处理；`M0-01` 这类任务卡编号不会被当成阶段。
+- 日期必须带年份；含计划措辞的语句和晚于今天的日期都不会让项目显得更新。文件修改时间从不参与判断。作为名词使用的“计划”（例如“MVP 计划与任务卡落地”）在描述已完成事件时不会被当成未来措辞。
 - 文档互相冲突时标记“待确认”，保留上次已接受状态，不做猜测。
 - 文件只以只读方式打开，扫描器绝不写入、重命名或删除项目文件夹内的任何文件。
 
@@ -193,6 +195,7 @@ Phase 0（跨平台基础）、Phase 1（项目登记与日历）、Phase 2（�
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 系统结构、数据流、隐私和技术选择。
 - [ROADMAP.md](ROADMAP.md) — 技术基线、实施阶段和验收标准。
 - [AGENTS.md](AGENTS.md) — 项目安全和开发规则。
+- [PROJECT_DOC_FORMAT.md](PROJECT_DOC_FORMAT.md) — 交给其他项目 Agent 的文档适配规范。
 
 ## 隐私
 

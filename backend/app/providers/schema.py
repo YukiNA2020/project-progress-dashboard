@@ -37,7 +37,7 @@ ALLOWED_SUPPORTS = {
     "phase_status",
 }
 ALLOWED_FIELDS = {"planned_start", "planned_end"}
-ALLOWED_PHASE_STATUS = {"completed", "in_progress", "upcoming", "unknown"}
+ALLOWED_PHASE_STATUS = {"completed", "in_progress", "pending_acceptance", "upcoming", "unknown"}
 ALLOWED_CONFIDENCE = {"high", "medium", "low"}
 
 CHINESE_DIGITS = {
@@ -205,7 +205,7 @@ def validate(payload: Dict[str, Any], bundle: Bundle) -> ModelResult:
 
     ordinal = _as_optional_int(payload.get("current_phase_ordinal"), "current_phase_ordinal")
     if ordinal is not None:
-        if ordinal < 1 or ordinal > 99:
+        if ordinal < 0 or ordinal > 99:
             raise ModelValidationError("current_phase_ordinal 超出合理范围")
         current_citations = [item for item in citations if item.supports == "current_phase"]
         if not current_citations:

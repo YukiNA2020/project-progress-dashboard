@@ -69,8 +69,14 @@ def shorten(text: str, limit: int) -> str:
 
 PLAN_MARKERS_RE = re.compile(
     r"(?i)\b(?:plan|planned|planning|schedule[sd]?|scheduled|expected|target|targeted|eta|forecast|will|due)\b"
-    r"|计划|预计|目标|排期|待定|拟定|预计完成"
 )
+CN_PLAN_MARKERS_RE = re.compile(r"预计|目标|排期|待定|拟定")
+
+# "计划" is both a verb ("plan to ...") and a noun ("the plan ..."). Only the
+# verb form should hide a record from freshness. A noun is recognised by a
+# demonstrative prefix ("本计划") or by a conjunction after it ("计划与任务卡").
+CN_PLAN_NOUN_PREFIXES = ("本", "该", "此", "这", "项目")
+CN_PLAN_NOUN_SUFFIXES = ("与", "和", "及", "、", "中", "书", "稿", "表")
 
 CHANGE_MARKERS_RE = re.compile(
     r"(?i)\b(?:delay(?:ed|s)?|postpon\w*|reschedul\w*|moved|pushed|slipped|advanced|new target|revised)\b"
@@ -122,6 +128,14 @@ TESTING_CLAIM_RE = re.compile(
     r"|测试中|进入测试|开始测试|转入测试|联调测试)"
 )
 
+# "Delivered, waiting for acceptance" must be read as a distinct state before
+# the generic completed vocabulary can claim it via the word "Delivered".
+PENDING_ACCEPTANCE_RE = re.compile(
+    r"(?i)(?:待(?:用户|使用方|需求方|业务方|甲方|客户)?验收"
+    r"|(?:已)?交付(?:后)?待验收"
+    r"|awaiting acceptance|pending acceptance|waiting for acceptance"
+    r"|acceptance pending|pending_acceptance)"
+)
 COMPLETED_RE = re.compile(
     r"(?i)\b(?:completed|complete|done|finished|shipped|released|delivered|implemented|landed|closed)\b"
     r"|已完成|完成|已结束|已交付|已实现|✅|✔"
@@ -148,6 +162,26 @@ PHASE_HEADING_RE = re.compile(
     r"\s*[—–\-:：.、)]*\s*(?P<title>.*)$",
     re.I,
 )
+
+# Milestone overview tables are common in existing projects. They are only
+# read inside a phase/roadmap section, or through an explicit "current phase"
+# row, so ordinary tables cannot invent phases.
+PHASE_SECTION_RE = re.compile(r"(?i)阶段|里程碑|milestone|phase|roadmap")
+MILESTONE_CELL_RE = re.compile(
+    r"(?i)^(?:milestone|phase|里程碑|阶段|m)\s*(?P<num>\d{1,2}|[一二三四五六七八九十]{1,3})"
+    r"\s*[—–\-:：.、)）|]*\s*(?P<title>.*)$"
+)
+TASK_CARD_CELL_RE = re.compile(r"(?i)^m\s*\d{1,2}\s*[-–—_]\s*\d{1,3}")
+CURRENT_PHASE_KEYS = {
+    "当前阶段",
+    "当前里程碑",
+    "current phase",
+    "current milestone",
+    "current stage",
+    "阶段",
+    "里程碑",
+    "stage",
+}
 
 STATUS_KV_RE = re.compile(r"^\**\s*(?:status|state|progress|状态|进展)\s*\**\s*[:：]\s*(?P<value>.+)$", re.I)
 START_KV_RE = re.compile(
@@ -199,12 +233,23 @@ def phase_mention(text: str) -> Tuple[Optional[int], str]:
     return ordinal, clean_inline(match.group(0))
 
 
+def ordinal_mentioned(text: str, ordinal: int) -> bool:
+    if re.search(r"(?<!\d)%d(?!\d)" % ordinal, text):
+        return True
+    for character, value in CN_NUMBERS.items():
+        if value == ordinal and character in text:
+            return True
+    return False
+
+
 def classify_status(text: str) -> str:
     value = text.strip()
     if not value:
         return "unknown"
     if NEGATED_RE.search(value):
         return "unknown"
+    if PENDING_ACCEPTANCE_RE.search(value):
+        return "pending_acceptance"
     if COMPLETED_RE.search(value):
         return "completed"
     # "Not started" contains "started"; check the negation before "current".
@@ -215,6 +260,26 @@ def classify_status(text: str) -> str:
     if UPCOMING_RE.search(value):
         return "upcoming"
     return "unknown"
+
+
+def looks_planned(text: str) -> bool:
+    """True when a sentence reads as a future plan, not a completed fact.
+
+    English plan words are unambiguous. For Chinese, ``计划`` is often a noun
+    (``MVP 计划与 36 张任务卡落地``), so it only counts as plan wording when it
+    is not part of a noun phrase.
+    """
+    if PLAN_MARKERS_RE.search(text) or CN_PLAN_MARKERS_RE.search(text):
+        return True
+    for match in re.finditer("计划", text):
+        before = text[max(0, match.start() - 3):match.start()]
+        after = text[match.end():match.end() + 3].lstrip()
+        if any(before.endswith(prefix) for prefix in CN_PLAN_NOUN_PREFIXES):
+            continue
+        if after.startswith(CN_PLAN_NOUN_SUFFIXES):
+            continue
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +313,10 @@ class PhaseCandidate:
     testing: bool
     status_raw: str
     status_values: List[str]
+    # True only for a "当前阶段" row that names a phase without saying anything
+    # about its status. Such a row says "this is the current phase"; it does not
+    # claim the phase is in progress, so a phase status found elsewhere wins.
+    status_fallback: bool = False
 
 
 @dataclass
@@ -283,7 +352,7 @@ def _progress_from_line(text: str, section: Section, source_path: str, line: int
         remainder = rest
 
     claim = strip_separators(clean_inline(remainder)).strip(" .,;；。")
-    planned = bool(PLAN_MARKERS_RE.search(claim))
+    planned = looks_planned(claim)
     ordinal, raw = phase_mention(claim)
     heading = " / ".join(section.path)
 
@@ -332,7 +401,7 @@ def extract_progress(document: Document) -> List[ProgressRecord]:
                             claim=shorten(entry, 300),
                             heading=" / ".join(section.path),
                             excerpt=shorten(clean_inline(section.heading), 220),
-                            planned=bool(PLAN_MARKERS_RE.search(entry)),
+                            planned=looks_planned(entry),
                             phase_ordinal=ordinal,
                             phase_raw=raw,
                         )
@@ -346,7 +415,7 @@ def extract_progress(document: Document) -> List[ProgressRecord]:
                 for _, following in section.lines[position + 1:]:
                     if following.strip():
                         record.claim = shorten(clean_inline(strip_line_marker(following)), 300)
-                        record.planned = bool(PLAN_MARKERS_RE.search(record.claim))
+                        record.planned = looks_planned(record.claim)
                         break
             if not record.claim:
                 continue
@@ -412,6 +481,9 @@ def _phase_from_heading(
                 # unknown dates instead of guessing a start.
                 if status == "completed":
                     end = end or dates[0].value
+                elif status == "pending_acceptance":
+                    # Delivery date: work is done, only acceptance is pending.
+                    end = end or dates[0].value
                 elif status == "current":
                     start = start or dates[0].value
             continue
@@ -463,6 +535,182 @@ def _phase_from_heading(
     )
 
 
+def _table_cells(raw: str) -> List[str]:
+    value = raw.strip()
+    if not value.startswith("|") or not value.endswith("|"):
+        return []
+    cells = [clean_inline(part) for part in value.strip("|").split("|")]
+    return cells if len(cells) >= 2 else []
+
+
+def _is_table_separator(cells: List[str]) -> bool:
+    return all(re.fullmatch(r"[-: ]+", cell or "") for cell in cells)
+
+
+def _milestone_cell(text: str) -> Optional[Tuple[int, str, bool]]:
+    """Return (ordinal, title, uses_m_prefix) for an M0 / Phase 2 cell."""
+    value = clean_inline(text).strip()
+    if TASK_CARD_CELL_RE.match(value):
+        return None
+    match = MILESTONE_CELL_RE.match(value)
+    if not match:
+        return None
+    ordinal = to_int(match.group("num"))
+    if ordinal is None:
+        return None
+    title = clean_inline(match.group("title")).strip(" —–-:：.、|")
+    uses_m = bool(re.match(r"(?i)^m\s*\d", value))
+    return ordinal, title, uses_m
+
+
+def _table_phase_name(ordinal: int, title: str, uses_m: bool) -> str:
+    if not title:
+        return f"M{ordinal}" if uses_m else f"Phase {ordinal}"
+    return f"M{ordinal} {title}" if uses_m else title
+
+
+def _table_name_cell(text: str) -> str:
+    """Use a title cell as a name only when it is a short human label."""
+    value = text.strip()
+    if not value or len(value) > 40 or "`" in value:
+        return ""
+    if re.match(r"(?i)^(?:python|pytest|npm|pnpm|yarn|make|bash|sh|cmd|powershell)\b", value):
+        return ""
+    if len(value) <= 16 and classify_status(value) != "unknown":
+        return ""
+    return value
+
+
+def _table_status(cells: List[str]) -> Tuple[str, str]:
+    """Read a status only from short, explicit cells, not from prose."""
+    found = set()
+    raw = ""
+    for cell in cells:
+        value = cell.strip()
+        if not value or len(value) > 16:
+            continue
+        status = classify_status(value)
+        if status == "unknown":
+            continue
+        found.add(status)
+        raw = raw or value
+    if len(found) == 1:
+        return found.pop(), raw
+    if len(found) > 1:
+        return "conflict", raw
+    return "unknown", ""
+
+
+def _current_row_status(section: Section, cells: List[str], ordinal: int) -> Tuple[str, str, bool]:
+    """Read the status of a "当前阶段" row instead of assuming it is current.
+
+    Order of evidence: a short status cell in the same row, a ``Status:`` line
+    in the same section that names this phase, then a status keyword inside the
+    phase cell itself (``Phase 2（待验收）``). A row that only names a phase is
+    still treated as "current", but flagged as a fallback so that a phase status
+    recorded elsewhere in the documents can take precedence.
+    """
+    texts: List[str] = []
+    for cell in cells[2:]:
+        value = cell.strip()
+        if value and len(value) <= 16:
+            texts.append(value)
+    for _, raw in section.lines:
+        kv = STATUS_KV_RE.match(strip_line_marker(raw))
+        if not kv:
+            continue
+        value = clean_inline(kv.group("value"))
+        if value and ordinal_mentioned(value, ordinal):
+            texts.append(value)
+    inline = classify_status(cells[1])
+    if inline != "unknown":
+        texts.append(cells[1])
+
+    found: dict = {}
+    for text in texts:
+        status = classify_status(text)
+        if status == "unknown":
+            continue
+        found.setdefault(status, clean_inline(text))
+    if len(found) == 1:
+        status, raw = next(iter(found.items()))
+        return status, raw, False
+    if len(found) > 1:
+        return "conflict", "；".join(found.values()), False
+    return "current", "", True
+
+
+def extract_table_phases(document: Document, start_order: int) -> List[PhaseCandidate]:
+    """Read milestone overview tables and an explicit current-phase row.
+
+    Milestone rows are only read inside a phase/roadmap section. The current
+    phase row is read anywhere, because it is an explicit statement rather
+    than a table of definitions.
+    """
+    candidates: List[PhaseCandidate] = []
+    order = start_order
+    for section in document.sections:
+        in_phase_section = bool(section.heading and PHASE_SECTION_RE.search(section.heading))
+        for _, raw in section.lines:
+            cells = _table_cells(raw)
+            if not cells or _is_table_separator(cells):
+                continue
+
+            key = cells[0].strip(" *:：`").lower()
+            if key in CURRENT_PHASE_KEYS:
+                parsed = _milestone_cell(cells[1])
+                if parsed is None:
+                    continue
+                ordinal, title, uses_m = parsed
+                status, status_raw, fallback = _current_row_status(section, cells, ordinal)
+                candidates.append(
+                    PhaseCandidate(
+                        source_path=document.relative_path,
+                        heading=section.heading,
+                        order=order,
+                        ordinal=ordinal,
+                        name=_table_phase_name(ordinal, title, uses_m),
+                        status=status,
+                        start=None,
+                        end=None,
+                        testing=bool(TESTING_LABEL_RE.search(clean_inline(raw))),
+                        status_raw=shorten(
+                            f"{cells[0]}：{cells[1]}" + (f" · {status_raw}" if status_raw else ""), 220
+                        ),
+                        status_values=[cells[1]] + ([status_raw] if status_raw else []),
+                        status_fallback=fallback,
+                    )
+                )
+                order += 1
+                continue
+
+            if not in_phase_section:
+                continue
+            parsed = _milestone_cell(cells[0])
+            if parsed is None:
+                continue
+            ordinal, title, uses_m = parsed
+            title = title or _table_name_cell(cells[1])
+            status, status_raw = _table_status(cells[2:])
+            candidates.append(
+                PhaseCandidate(
+                    source_path=document.relative_path,
+                    heading=section.heading,
+                    order=order,
+                    ordinal=ordinal,
+                    name=_table_phase_name(ordinal, title, uses_m),
+                    status=status,
+                    start=None,
+                    end=None,
+                    testing=bool(TESTING_LABEL_RE.search(clean_inline(raw))),
+                    status_raw=shorten(status_raw, 220),
+                    status_values=[status_raw] if status_raw else [],
+                )
+            )
+            order += 1
+    return candidates
+
+
 def extract_phases(document: Document) -> List[PhaseCandidate]:
     candidates: List[PhaseCandidate] = []
     order = 0
@@ -503,6 +751,7 @@ def extract_phases(document: Document) -> List[PhaseCandidate]:
                 )
             )
             order += 1
+    candidates.extend(extract_table_phases(document, order))
     return candidates
 
 
@@ -528,7 +777,13 @@ def extract_summary(document: Document) -> str:
                         return shorten(candidate, SUMMARY_LIMIT)
                     paragraph = []
                 continue
-            if text.startswith(SKIP_PARAGRAPH_PREFIXES):
+            if text.startswith(">"):
+                # README taglines are often written as blockquotes. Keep the
+                # text but drop the quote marker so it can act as a summary.
+                text = strip_line_marker(raw).strip()
+                if not text:
+                    continue
+            elif text.startswith(SKIP_PARAGRAPH_PREFIXES):
                 continue
             paragraph.append(text)
         if paragraph:

@@ -337,14 +337,18 @@ def main() -> int:
     # ------------------------------------------------------------------
     registry = FakeWinreg()
     system.registry_module = registry
-    system.python_executable = r"C:\Program Files\Python\pythonw.exe"
     system.platform_id = lambda: "windows"
 
     windows_status = system.enable_startup()
     command = registry.keys[r"Software\Microsoft\Windows\CurrentVersion\Run"].values["ProjectProgressDashboard"]
+    launcher_text = (BACKEND_DIR / "launch_hidden.vbs").read_text(encoding="utf-8")
     check("Windows 启动项写入 Run 键", bool(command))
-    check("启动命令指向 run.py serve --open-browser", "run.py" in command and "serve --open-browser" in command)
-    check("带空格的解释器路径被正确加引号", command.startswith('"C:\\Program Files\\Python\\pythonw.exe"'))
+    check(
+        "启动命令使用隐藏启动器",
+        "wscript.exe" in command and "launch_hidden.vbs" in command and (BACKEND_DIR / "launch_hidden.vbs").is_file(),
+    )
+    check("隐藏启动器指向 run.py 与 serve --open-browser", "run.py" in launcher_text and "serve --open-browser" in launcher_text)
+    check("隐藏启动器不依赖被策略禁止的 pythonw", r"\.venv\Scripts\pythonw.exe" not in launcher_text)
     check("启动状态为已启用", windows_status["enabled"] is True and windows_status["platform"] == "windows")
     check("状态里的命令与注册表一致", windows_status["command"] == command)
     check("状态给出注册表位置", windows_status["location"].startswith("HKEY_CURRENT_USER"))
@@ -363,6 +367,9 @@ def main() -> int:
     system.home_override = HOME_DIR
     system.python_executable = "/Applications/Python 3.11/bin/python3"
     system.platform_id = lambda: "macos"
+    if not hasattr(os, "getuid"):
+        # macOS 的 launchctl 域名需要 uid；在非 POSIX 系统上仅用于模拟。
+        system.macos_startup._uid = lambda: 501
     recorder = LaunchctlRecorder()
     system.launchctl_runner = recorder
 
@@ -375,7 +382,7 @@ def main() -> int:
     check("plist 把输出写入日志文件", str(payload.get("StandardErrorPath", "")).endswith("dashboard.log"))
     check("启用时调用 launchctl bootstrap", any(call[0] == "bootstrap" for call in recorder.calls))
     check("macOS 启动状态为已启用", mac_status["enabled"] is True)
-    check("位置显示为 ~ 路径", mac_status["location"].startswith("~/Library/LaunchAgents/"))
+    check("位置显示为 ~ 路径", mac_status["location"].replace("\\", "/").startswith("~/Library/LaunchAgents/"))
 
     system.disable_startup()
     check("关闭后删除 plist", not plist_path.exists())
@@ -417,7 +424,8 @@ def main() -> int:
     check("启动命令使用当前解释器", system.launcher_arguments()[0] == "/Applications/Python 3.11/bin/python3")
     check(
         "启动命令指向真实的 run.py",
-        (BACKEND_DIR / "run.py").is_file() and system.launcher_arguments()[1].endswith("backend/run.py"),
+        (BACKEND_DIR / "run.py").is_file()
+        and system.launcher_arguments()[1].replace("\\", "/").endswith("backend/run.py"),
     )
 
     # ------------------------------------------------------------------

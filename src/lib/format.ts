@@ -64,6 +64,8 @@ export function phaseStatusLabel(status: string): string {
       return '已完成'
     case 'current':
       return '进行中'
+    case 'pending_acceptance':
+      return '待验收'
     case 'upcoming':
       return '未开始'
     case 'conflict':
@@ -82,7 +84,7 @@ export function basisNote(basis: string | undefined): string {
     case 'derived_completed_prefix':
       return '文档没有标注进行中，当前阶段按“已完成”前缀推定'
     case 'all_completed':
-      return '所有阶段都标记为已完成'
+      return '所有阶段都标记为已完成，当前展示最后一个阶段'
     case 'rules_and_model':
       return '规则与模型都指向同一阶段，已互相对照'
     default:

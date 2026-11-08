@@ -77,17 +77,19 @@ def _log_path() -> Path:
 def _startup_python() -> str:
     if python_executable:
         return python_executable
-    executable = sys.executable
-    if os.name == "nt":
-        # pythonw.exe starts without a console window; fall back when missing.
-        candidate = Path(executable).with_name("pythonw.exe")
-        if candidate.is_file():
-            return str(candidate)
-    return executable
+    return sys.executable
 
 
 def launcher_arguments() -> List[str]:
     """The exact command the login-startup entry runs."""
+    if platform_id() == "windows":
+        # 一些受管 Windows 计算机会按策略禁止 pythonw.exe；用隐藏启动器
+        # 拉起 python.exe，同样不会出现控制台窗口。
+        system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+        return [
+            str(system_root / "System32" / "wscript.exe"),
+            str(backend_directory() / "launch_hidden.vbs"),
+        ]
     return [str(_startup_python()), str(backend_directory() / "run.py"), "serve", "--open-browser"]
 
 

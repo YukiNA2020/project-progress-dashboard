@@ -109,6 +109,8 @@ The browser never receives API secrets and does not directly read arbitrary loca
 2. Walk the folder once, pruning dependency/build/VCS/cache and hidden directories. Caps: 300 files, 512 KB per file, 4 MB total. Symlinked directories are not followed, and symlinked files are read only when their target stays inside the registered folder.
 3. Parse each file into heading-scoped sections, ignoring fenced code blocks and HTML comments, so example snippets cannot become evidence.
 4. Extract dated progress records, phase headings with status lines, the README summary, testing labels, and schedule statements.
+   - Milestone tables are read only inside a phase/roadmap section (`| M0 | 数据底座 | ... |`), and an explicit `当前阶段` row is read anywhere. `M0` maps to ordinal 0; task-card IDs such as `M0-01` are rejected.
+   - A `计划` used as a noun (``MVP 计划与 36 张任务卡落地``) is not counted as future wording; only the verb form is.
 5. Build one candidate state, apply the conflict rules, and persist it.
 
 **Trust rules implemented**
@@ -151,6 +153,7 @@ The browser never receives API secrets and does not directly read arbitrary loca
 
 - One numbered bundle per project: at most 14 items, 600 characters each, about 6,000 characters total.
 - Item kinds: project summary, newest progress sentences, phase headings with their status line, and schedule statements. Progress items send the sentence, not the date line; phase items send the document heading because the status line alone does not name the phase.
+- The prompt explains the item kinds, the `M0` → ordinal 0 mapping, and that task-card IDs are not phases. It tells the model to treat future plan wording as non-fact and to return null rather than guess when no current-phase evidence exists.
 - Sources are paths relative to the registered folder. Absolute paths, file contents, credentials, and environment details are never included.
 
 **Structured output contract**
@@ -198,10 +201,10 @@ The model must return one JSON object with `current_phase_ordinal`, `current_pha
 
 **Login startup**
 
-- Windows: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value name `ProjectProgressDashboard`, set to `"<python>" "<backend>\run.py" serve --open-browser`. It needs no administrator rights, is visible in Task Manager's startup tab, and `pythonw.exe` is used when it exists so no console window appears. The value is written through `winreg` with explicit key handles; no shell is involved.
+- Windows: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value name `ProjectProgressDashboard`, set to `wscript.exe "<backend>\launch_hidden.vbs"`. The launcher starts `python.exe` with a hidden console window; `pythonw.exe` is avoided because some managed Windows machines block it by policy. It needs no administrator rights and is visible in Task Manager's startup tab. The value is written through `winreg` with explicit key handles; no shell is involved.
 - macOS: `~/Library/LaunchAgents/com.projectprogressdashboard.dashboard.plist` with `RunAtLoad` true, `KeepAlive` false, and standard output/error pointing at the dashboard log. Enabling writes the plist, boots out a stale job, then runs `launchctl bootstrap gui/<uid>`. If launchctl refuses, the API returns the exact command for the user to run and keeps the plist in place.
 - Linux: reported as unsupported with the launch command shown; no autostart file is written.
-- The command is always built from `sys.executable` and the real `backend/run.py`, so moving the repository only requires toggling the entry again.
+- The command is always built from the real repository paths, so moving the repository only requires toggling the entry again.
 
 **Daily automatic scan**
 
@@ -323,6 +326,8 @@ React 界面呈现月历、项目详情和巡检摘要
 2. 单次遍历目录，跳过依赖／构建／版本库／缓存与隐藏目录。上限：300 个文件、单文件 512 KB、总计 4 MB。不跟随目录软链；文件软链只有指向登记目录内部时才读取。
 3. 按标题分节解析，跳过代码块与 HTML 注释，避免示例片段被当作证据。
 4. 抽取带明确日期的进展、Phase 标题与状态行、README 简介、测试标记和排期描述。
+   - 里程碑表格只在“阶段／里程碑／Roadmap”章节内读取（`| M0 | 数据底座 | ... |`），而明确的“当前阶段”行可在任意章节读取。`M0` 按序号 0 处理；`M0-01` 这类任务卡编号会被拒绝。
+   - 作为名词使用的“计划”（如“MVP 计划与 36 张任务卡落地”）不算未来措辞；只有动词用法才算。
 5. 合成一个候选状态，套用冲突规则后落库。
 
 **已实现的信任规则**
@@ -365,6 +370,7 @@ React 界面呈现月历、项目详情和巡检摘要
 
 - 每个项目一个编号证据包：最多 14 条、每条 600 字符、总计约 6000 字符。
 - 条目类型：项目简介、最新进展句子、阶段标题与状态行、排期语句。进展条目发送句子而不是日期行；阶段条目发送文档标题，因为状态行本身不含阶段名。
+- 提示词会解释条目类型、`M0` → 序号 0 的映射，以及任务卡编号不是阶段；并要求模型把未来计划措辞视为非事实、没有当前阶段证据时返回 null 而不是猜测。
 - 来源一律是相对登记目录的路径，不发送绝对路径、完整文件、凭证或环境信息。
 
 **结构化输出约定**
@@ -412,10 +418,10 @@ React 界面呈现月历、项目详情和巡检摘要
 
 **登录启动**
 
-- Windows：写入 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `ProjectProgressDashboard`，值为 `"<python>" "<backend>\run.py" serve --open-browser`。不需要管理员权限，可在任务管理器“启动”标签关闭；存在 `pythonw.exe` 时优先使用，避免弹出控制台窗口。注册表通过 `winreg` 显式打开键写入，不经过 shell。
+- Windows：写入 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 的 `ProjectProgressDashboard`，值为 `wscript.exe "<backend>\launch_hidden.vbs"`。启动器以隐藏的控制台窗口拉起 `python.exe`；不使用 `pythonw.exe`，因为部分受管 Windows 计算机会按策略禁止它。不需要管理员权限，可在任务管理器“启动”标签关闭。注册表通过 `winreg` 显式打开键写入，不经过 shell。
 - macOS：写入 `~/Library/LaunchAgents/com.projectprogressdashboard.dashboard.plist`，`RunAtLoad` 为真、`KeepAlive` 为假，标准输出与错误指向看板日志。启用时先 `bootout` 掉旧任务，再 `launchctl bootstrap gui/<uid>`；若 launchctl 拒绝，接口会返回可直接执行的命令，并保留 plist。
 - Linux：报告为不支持并展示启动命令，不写自启动文件。
-- 命令始终由 `sys.executable` 与真实的 `backend/run.py` 组成，移动仓库后重新开关一次即可。
+- 命令始终由真实的仓库路径生成，移动仓库后重新开关一次即可。
 
 **每日自动巡检**
 

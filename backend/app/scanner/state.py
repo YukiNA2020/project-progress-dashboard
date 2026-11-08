@@ -89,6 +89,29 @@ def _document_priority(document: Document) -> tuple:
     return (0 if name.startswith("readme") else 1, depth, document.relative_path.lower())
 
 
+# A phase waiting for the user to accept the delivery is still the phase the
+# project is sitting in. "current" and "pending_acceptance" are two views of the
+# same in-progress phase, so a more specific acceptance state wins over "current".
+IN_PROGRESS_STATUSES = {"current", "pending_acceptance"}
+
+
+def _resolve_phase_status(statuses: Sequence[Tuple[str, bool]]) -> str:
+    """Resolve one phase status from all documents.
+
+    A "当前阶段" row that names a phase without a status is only a fallback: any
+    explicit status recorded elsewhere (a Status line, a roadmap row) wins.
+    """
+    explicit = {status for status, fallback in statuses if not fallback}
+    if explicit:
+        if explicit == {"current", "pending_acceptance"}:
+            return "pending_acceptance"
+        return next(iter(explicit)) if len(explicit) == 1 else "conflict"
+    if not statuses:
+        return "unknown"
+    fallback = {status for status, _ in statuses}
+    return next(iter(fallback)) if len(fallback) == 1 else "conflict"
+
+
 def merge_phases(documents: Sequence[Document]) -> Tuple[List[Phase], List[str]]:
     merged: Dict[int, dict] = {}
     conflicts: List[str] = []
@@ -113,7 +136,7 @@ def merge_phases(documents: Sequence[Document]) -> Tuple[List[Phase], List[str]]
                 entry["name"] = candidate.name
             status = candidate.status
             if status not in ("unknown", "conflict"):
-                entry["statuses"].append(status)
+                entry["statuses"].append((status, candidate.status_fallback))
             if candidate.start and entry["start"] is None:
                 entry["start"] = candidate.start
             elif candidate.start and entry["start"] and candidate.start != entry["start"]:
@@ -134,14 +157,10 @@ def merge_phases(documents: Sequence[Document]) -> Tuple[List[Phase], List[str]]
     phases: List[Phase] = []
     for ordinal in sorted(merged):
         entry = merged[ordinal]
-        statuses = set(entry["statuses"])
-        if len(statuses) == 1:
-            status = statuses.pop()
-        elif len(statuses) > 1:
-            status = "conflict"
-            conflicts.append(f"阶段 {ordinal} 在两个文档中的状态互相矛盾（{' / '.join(sorted(statuses))}）")
-        else:
-            status = "unknown"
+        status = _resolve_phase_status(entry["statuses"])
+        if status == "conflict":
+            labels = sorted({value for value, _ in entry["statuses"]})
+            conflicts.append(f"阶段 {ordinal} 在两个文档中的状态互相矛盾（{' / '.join(labels)}）")
         phases.append(
             Phase(
                 ordinal=ordinal,
@@ -196,6 +215,13 @@ def _resolve_current(
 ) -> Tuple[Optional[Phase], str]:
     by_ordinal = {phase.ordinal: phase for phase in phases}
 
+    # Complete is complete. A stale "current" marker or a disagreeing record
+    # must not keep a finished project looking active, so this check comes first
+    # and the last phase is shown as the current one.
+    if phases and all(phase.status == "completed" for phase in phases):
+        notes.append("所有阶段都标记为已完成，当前阶段按最后一个阶段展示")
+        return by_ordinal[max(phase.ordinal for phase in phases)], "all_completed"
+
     if record_ordinals:
         unique = sorted(set(record_ordinals))
         if len(unique) > 1:
@@ -233,9 +259,6 @@ def _resolve_current(
     completed = sorted(phase.ordinal for phase in phases if phase.status == "completed")
     if not completed:
         return None, "none"
-    if len(completed) == len(phases):
-        notes.append("所有阶段都标记为已完成，当前阶段按最后一个已完成阶段展示")
-        return by_ordinal[max(completed)], "all_completed"
 
     candidates = [phase for phase in phases if phase.ordinal > max(completed)]
     if not candidates:
@@ -298,7 +321,7 @@ def build_candidate(project: dict, discovery: Discovery, documents: Sequence[Doc
         if ordinal is not None:
             record_ordinals.append(ordinal)
 
-    explicit_currents = [phase for phase in phases if phase.status == "current"]
+    explicit_currents = [phase for phase in phases if phase.status in IN_PROGRESS_STATUSES]
     current, basis = _resolve_current(phases, explicit_currents, record_ordinals, conflicts, notes)
 
     testing = bool(current and current.testing)
