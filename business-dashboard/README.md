@@ -103,7 +103,7 @@ python3 scripts/check_env.py    # macOS
 ## 开发
 
 ```
-python scripts/smoke.py     # 12 项冒烟测试，改代码后必跑
+python scripts/smoke.py     # 22 项冒烟测试，改代码后必跑
 ```
 
 详细规范见 `AGENTS.md`。
