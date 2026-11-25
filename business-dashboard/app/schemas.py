@@ -22,6 +22,7 @@ class StateInput(BaseModel):
     customers: List[Dict[str, Any]] = Field(default_factory=list)
     projects: List[Dict[str, Any]] = Field(default_factory=list)
     phases: List[Dict[str, Any]] = Field(default_factory=list)
+    orders: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ParseInput(BaseModel):
@@ -46,7 +47,10 @@ class CustomerInput(BaseModel):
 
 class ProjectPatch(BaseModel):
     name: Optional[str] = None
+    model: Optional[str] = None
     customer: Optional[str] = None
+    orderId: Optional[str] = None
+    round: Optional[int] = None
     phase: Optional[str] = None
     start: Optional[str] = None
     end: Optional[str] = None
@@ -63,6 +67,7 @@ class ProjectPatch(BaseModel):
     unsure: Optional[List[str]] = None
     done: Optional[List[str]] = None
     milestones: Optional[List[Dict[str, Any]]] = None
+    payload: Optional[Dict[str, Any]] = None
 
 
 class PhasesInput(BaseModel):

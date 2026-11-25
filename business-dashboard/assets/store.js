@@ -8,8 +8,7 @@
 (function (window) {
   'use strict';
 
-  var CACHE_KEY = 'biz_project_board_cache_v1';
-  var LEGACY_KEY = 'biz_project_board_v4';
+  var CACHE_KEY = 'biz_project_board_cache_v2';
 
   var Store = {
     mode: 'offline',
@@ -83,7 +82,8 @@
     queued = {
       customers: db.customers || [],
       projects: db.projects || [],
-      phases: db.phases || []
+      phases: db.phases || [],
+      orders: db.orders || []
     };
     if (timer) clearTimeout(timer);
     timer = setTimeout(flush, 220);
@@ -96,7 +96,7 @@
 
   Store.cached = function () {
     try {
-      var raw = localStorage.getItem(CACHE_KEY) || localStorage.getItem(LEGACY_KEY);
+      var raw = localStorage.getItem(CACHE_KEY);
       if (!raw) return null;
       var data = JSON.parse(raw);
       if (!data || !Array.isArray(data.projects)) return null;
@@ -111,7 +111,8 @@
       localStorage.setItem(CACHE_KEY, JSON.stringify({
         customers: db.customers || [],
         projects: db.projects || [],
-        phases: db.phases || []
+        phases: db.phases || [],
+        orders: db.orders || []
       }));
     } catch (error) {
       Store.lastError = '浏览器拒绝写入本地缓存，请务必导出备份';
@@ -169,12 +170,13 @@
   Store.exportPayload = function (db) {
     return {
       format: 'bizboard',
-      version: 1,
+      version: 2,
       exported_at: new Date().toISOString(),
       data: {
         customers: db.customers || [],
         projects: db.projects || [],
-        phases: db.phases || []
+        phases: db.phases || [],
+        orders: db.orders || []
       }
     };
   };

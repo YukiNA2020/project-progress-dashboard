@@ -214,6 +214,40 @@ def main() -> int:
         guarded, _ignored = _cross_origin(port)
         check("19. 跨站写入被拒绝（防恶意网页打本地端口）", guarded == 403, str(guarded))
 
+        # v2：项目 = 型号，订单归组，线程与日志存 payload_json。
+        call(port, "/api/state", "POST", {
+            "customers": [{"id": "c9", "name": "客户A"}],
+            "phases": [{"name": "报价"}, {"name": "生产"}],
+            "orders": [{"id": "o1", "customer": "c9", "code": "PO-2411"}],
+            "projects": [{
+                "id": "p9", "name": "X220", "model": "X220", "customer": "c9",
+                "orderId": "o1", "round": 3, "phase": "生产", "updated": "2026-11-25",
+                "shipAt": "2027-01-15",
+                "threads": [{"id": "t1", "title": "PI 重签", "side": "客户",
+                             "kind": "soft", "since": "2026-11-20"}],
+                "log": [{"at": "2026-11-24", "source": "邮件", "key": "abc123"}],
+            }],
+        })
+        _status, v2 = call(port, "/api/bootstrap")
+        check("20. 订单能落库并读回（请求模型不再丢弃 orders）",
+              len(v2.get("orders") or []) == 1
+              and v2["orders"][0]["code"] == "PO-2411",
+              str(v2.get("counts")))
+
+        model = v2["projects"][0]
+        check("21. 型号 / 订单 / 轮次往返正确",
+              model["model"] == "X220" and model["orderId"] == "o1"
+              and model["round"] == 3,
+              json.dumps({k: model[k] for k in ("model", "orderId", "round")},
+                         ensure_ascii=False))
+
+        check("22. 在办事项与日志存进 payload_json 且不丢",
+              len(model["threads"]) == 1 and model["threads"][0]["title"] == "PI 重签"
+              and len(model["log"]) == 1 and model["log"][0]["key"] == "abc123"
+              and model["shipAt"] == "2027-01-15",
+              json.dumps({"threads": model.get("threads"),
+                          "log": model.get("log")}, ensure_ascii=False)[:160])
+
     finally:
         process.terminate()
         try:

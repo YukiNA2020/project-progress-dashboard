@@ -22,6 +22,7 @@ ID_PREFIX = {
     "phase": "ph_",
     "milestone": "m_",
     "capture": "cap_",
+    "order": "o_",
 }
 
 
@@ -105,13 +106,33 @@ def _projects_payload(db: sqlite3.Connection, include_archived: bool = False) ->
     return [_project_dict(row, phases, done, milestones, unsure) for row in rows]
 
 
+# Keys that live in their own column. Everything else a project carries
+# (threads, the progress log, derived dates) is kept as JSON in payload_json,
+# so the frontend can grow new fields without a migration.
+COLUMN_KEYS = {
+    "id", "name", "model", "customer", "phase", "orderId", "round", "start",
+    "end", "color", "contact", "dept", "deptType", "contactWay", "means",
+    "channel", "note", "next", "updated", "unsure", "done", "milestones",
+}
+
+
 def _project_dict(row, phases: Dict[str, str], done: Dict, milestones: Dict,
                   unsure: Dict) -> Dict:
-    return {
+    try:
+        extra = json.loads(row["payload_json"] or "{}")
+    except (ValueError, TypeError):
+        extra = {}
+    if not isinstance(extra, dict):
+        extra = {}
+
+    base = {
         "id": row["id"],
         "name": row["name"],
+        "model": row["model"] or "",
         "customer": row["customer_id"] or "",
         "phase": phases.get(row["phase_id"] or "", ""),
+        "orderId": row["order_id"] or "",
+        "round": int(row["round"] or 1),
         "start": row["start_date"] or "",
         "end": row["end_date"] or "",
         "color": row["color"],
@@ -128,6 +149,10 @@ def _project_dict(row, phases: Dict[str, str], done: Dict, milestones: Dict,
         "done": done.get(row["id"], []),
         "milestones": milestones.get(row["id"], []),
     }
+    for key, value in extra.items():
+        if key not in base:
+            base[key] = value
+    return base
 
 
 def bootstrap() -> Dict[str, Any]:
@@ -146,14 +171,22 @@ def bootstrap() -> Dict[str, Any]:
              "ordinal": row["ordinal"]}
             for row in db.execute("SELECT * FROM phases ORDER BY ordinal, rowid")
         ]
+        orders = [
+            {"id": row["id"], "customer": row["customer_id"] or "",
+             "code": row["code"], "note": row["note"]}
+            for row in db.execute(
+                "SELECT * FROM orders WHERE archived = 0 ORDER BY code, rowid"
+            )
+        ]
         projects = _projects_payload(db)
         counts = {
             "projects": len(projects),
             "customers": len(customers),
             "phases": len(phases),
+            "orders": len(orders),
         }
     return {"customers": customers, "projects": projects, "phases": phases,
-            "counts": counts}
+            "orders": orders, "counts": counts}
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +204,7 @@ def replace_state(payload: Dict[str, Any]) -> Dict[str, Any]:
     customers = payload.get("customers") or []
     phases = payload.get("phases") or []
     projects = payload.get("projects") or []
+    orders = payload.get("orders") or []
 
     with connection() as db:
         before = _snapshot(db)
@@ -179,6 +213,7 @@ def replace_state(payload: Dict[str, Any]) -> Dict[str, Any]:
         db.execute("DELETE FROM done_phases")
         db.execute("DELETE FROM field_flags")
         db.execute("DELETE FROM projects")
+        db.execute("DELETE FROM orders")
         db.execute("DELETE FROM customers")
         db.execute("DELETE FROM phases")
 
@@ -212,22 +247,45 @@ def replace_state(payload: Dict[str, Any]) -> Dict[str, Any]:
                  customer.get("channel") or "", today_str(), today_str()),
             )
 
+        order_ids = set()
+        for order in orders:
+            oid = order.get("id") or new_id("order")
+            if oid in order_ids:
+                continue
+            order_ids.add(oid)
+            cid = order.get("customer") or ""
+            if cid and cid not in customer_ids:
+                cid = ""
+            db.execute(
+                "INSERT INTO orders (id, customer_id, code, note, archived)"
+                " VALUES (?, ?, ?, ?, 0)",
+                (oid, cid or None, order.get("code") or "", order.get("note") or ""),
+            )
+
         for project in projects:
             pid = project.get("id") or new_id("project")
             cid = project.get("customer") or ""
             if cid and cid not in customer_ids:
                 cid = ""
+            oid = project.get("orderId") or ""
+            if oid and oid not in order_ids:
+                oid = ""
             phase_name = project.get("phase") or ""
+            extra = {k: v for k, v in project.items() if k not in COLUMN_KEYS}
             db.execute(
-                "INSERT INTO projects (id, name, customer_id, phase_id, start_date,"
-                " end_date, color, contact, dept, dept_type, contact_way, means,"
-                " channel, note, next_action, archived, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO projects (id, name, model, customer_id, phase_id,"
+                " order_id, round, start_date, end_date, color, contact, dept,"
+                " dept_type, contact_way, means, channel, note, next_action,"
+                " payload_json, archived, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     pid,
                     (project.get("name") or "未命名项目").strip(),
+                    project.get("model") or "",
                     cid or None,
                     phase_ids.get(phase_name),
+                    oid or None,
+                    int(project.get("round") or 1),
                     project.get("start") or None,
                     project.get("end") or None,
                     project.get("color") or "#465ed8",
@@ -239,6 +297,7 @@ def replace_state(payload: Dict[str, Any]) -> Dict[str, Any]:
                     project.get("channel") or "",
                     project.get("note") or "",
                     project.get("next") or "",
+                    json.dumps(extra, ensure_ascii=False),
                     0,
                     project.get("updated") or today_str(),
                     project.get("updated") or today_str(),
@@ -269,8 +328,10 @@ def replace_state(payload: Dict[str, Any]) -> Dict[str, Any]:
         if before != after:
             log_change(db, "state", "all", "replace", before, after)
 
-        result = bootstrap()
-    return result
+    # Read back only after the transaction is committed. bootstrap() opens its
+    # own connection, and a second connection cannot see uncommitted rows —
+    # calling it inside the block silently returned the previous state.
+    return bootstrap()
 
 
 def _snapshot(db: sqlite3.Connection) -> Dict[str, Any]:
@@ -283,6 +344,7 @@ def _snapshot(db: sqlite3.Connection) -> Dict[str, Any]:
             for r in db.execute("SELECT id, name, phase_id FROM projects")
         ],
         "phases": [r["name"] for r in db.execute("SELECT name FROM phases ORDER BY ordinal")],
+        "orders": [r["code"] for r in db.execute("SELECT code FROM orders ORDER BY rowid")],
     }
 
 
@@ -292,10 +354,12 @@ def _snapshot(db: sqlite3.Connection) -> Dict[str, Any]:
 
 def patch_project(project_id: str, data: Dict[str, Any]) -> Dict:
     column_for = {
-        "name": "name", "start": "start_date", "end": "end_date", "color": "color",
+        "name": "name", "model": "model", "round": "round",
+        "start": "start_date", "end": "end_date", "color": "color",
         "contact": "contact", "dept": "dept", "deptType": "dept_type",
         "contactWay": "contact_way", "means": "means", "channel": "channel",
         "note": "note", "next": "next_action", "updated": "updated_at",
+        "orderId": "order_id",
     }
     with connection() as db:
         row = db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
@@ -338,6 +402,17 @@ def patch_project(project_id: str, data: Dict[str, Any]) -> Dict:
                     " VALUES (?, ?, ?, ?, ?)",
                     (item.get("id") or new_id("milestone"), project_id, item["date"],
                      item.get("label") or "", 1 if item.get("done") else 0))
+
+        if isinstance(data.get("payload"), dict):
+            try:
+                merged = json.loads(row["payload_json"] or "{}")
+            except (ValueError, TypeError):
+                merged = {}
+            if not isinstance(merged, dict):
+                merged = {}
+            merged.update(data["payload"])
+            db.execute("UPDATE projects SET payload_json = ? WHERE id = ?",
+                       (json.dumps(merged, ensure_ascii=False), project_id))
 
         db.execute("UPDATE projects SET updated_at = ? WHERE id = ?",
                    (data.get("updated") or today_str(), project_id))
@@ -426,8 +501,7 @@ def replace_phases(phases: List[Dict[str, Any]]) -> Dict[str, Any]:
 
         log_change(db, "phase", "all", "replace",
                    {"names": old}, {"names": list(ids)})
-        result = bootstrap()
-    return result
+    return bootstrap()
 
 
 def record_capture(raw_text: str, project_id: Optional[str], parser: str,

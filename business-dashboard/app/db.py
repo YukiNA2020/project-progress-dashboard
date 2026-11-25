@@ -15,7 +15,16 @@ from typing import Iterator
 
 from .settings import database_path, now_iso
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+# Columns added after the first release. They are appended with ALTER TABLE on
+# an existing database, so a board created yesterday keeps opening today.
+LATE_COLUMNS = (
+    ("projects", "model", "TEXT NOT NULL DEFAULT ''"),
+    ("projects", "order_id", "TEXT"),
+    ("projects", "round", "INTEGER NOT NULL DEFAULT 1"),
+    ("projects", "payload_json", "TEXT NOT NULL DEFAULT '{}'"),
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -43,8 +52,11 @@ CREATE TABLE IF NOT EXISTS phases (
 CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
     customer_id TEXT,
     phase_id TEXT,
+    order_id TEXT,
+    round INTEGER NOT NULL DEFAULT 1,
     start_date TEXT,
     end_date TEXT,
     color TEXT NOT NULL,
@@ -56,12 +68,21 @@ CREATE TABLE IF NOT EXISTS projects (
     channel TEXT NOT NULL DEFAULT '',
     note TEXT NOT NULL DEFAULT '',
     next_action TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}',
     archived INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_projects_customer ON projects(customer_id);
 CREATE INDEX IF NOT EXISTS idx_projects_phase ON projects(phase_id);
+
+CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT,
+    code TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    archived INTEGER NOT NULL DEFAULT 0
+);
 
 CREATE TABLE IF NOT EXISTS done_phases (
     project_id TEXT NOT NULL,
@@ -188,6 +209,8 @@ def initialize_database() -> dict:
 
         db.execute("PRAGMA journal_mode = WAL")
         db.executescript(SCHEMA)
+        for table, column, definition in LATE_COLUMNS:
+            ensure_column(db, table, column, definition)
         row = db.execute("SELECT version FROM schema_meta LIMIT 1").fetchone()
         if row is None:
             db.execute("INSERT INTO schema_meta (version) VALUES (?)", (SCHEMA_VERSION,))
@@ -200,24 +223,31 @@ def initialize_database() -> dict:
 
 
 def seed_defaults() -> None:
-    """Give a brand new database a usable set of phases.
+    """Give a brand new database the real overseas-project pipeline.
 
-    Empty phase lists make the board look broken on first run, so the seven
-    stages the user actually works with are created once and then fully
-    editable from the settings dialog.
+    These nine stages are the ones the business actually runs on: a quote is
+    issued, the order is raised, development passes first-article and
+    industrial samples, HR releases it for production, the rolling plan is
+    submitted (a hard four-week gate), the factory produces, a third party
+    inspects, the goods ship, and the model is finally on sale.
+
+    Everything here is editable from the settings dialog, so this is a
+    starting point rather than a constraint.
     """
     with connection() as db:
         count = db.execute("SELECT COUNT(*) AS n FROM phases").fetchone()["n"]
         if count:
             return
         defaults = [
-            ("未开始", "#98a1ad"),
-            ("打样中", "#7c8cf8"),
-            ("开发中", "#465ed8"),
-            ("待核价", "#a06cd5"),
-            ("生产中", "#e8a13a"),
-            ("待出货", "#1d9e75"),
-            ("已交付", "#2b8a3e"),
+            ("报价", "#8a94a5"),
+            ("立项", "#7c8cf8"),
+            ("开发", "#465ed8"),
+            ("HR过号", "#c2417a"),
+            ("滚动计划", "#d98324"),
+            ("生产", "#e8a13a"),
+            ("抽检", "#0f7b8a"),
+            ("发运", "#1d9e75"),
+            ("在售", "#2b8a3e"),
         ]
         for ordinal, (name, color) in enumerate(defaults):
             db.execute(

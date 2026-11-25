@@ -67,6 +67,8 @@
 | `index.html` | 唯一前端。结构 + 样式 + 渲染 | 只改 `<script>` 里的数据来源；HTML/CSS 不动 |
 | `assets/store.js` | 数据层抽象，双模式切换唯一入口 | 新增数据操作必须同时实现两种模式 |
 | `assets/local-parse.js` | 离线模式解析 | 与 `app/parsing/local_rules.py` 算法保持一致 |
+| `assets/md-import.js` | MD 切块、抽取、内容哈希 | 纯前端，不引后端；改抽取规则要同时验证幂等（同一份导两次不重复） |
+| `app/schemas.py` | 请求模型 | **加字段必须同时加这里**，否则 Pydantic 会静默丢弃（踩过一次：orders 全丢） |
 | `app/main.py` | 应用装配、静态托管、安全守卫 | 守卫不可削弱 |
 | `app/settings.py` | 跨平台路径 | 数据目录必须在用户目录下，不在项目内 |
 | `app/db.py` | 连接、schema、迁移 | 只增不删；加列走 `ADDED_COLUMNS` |

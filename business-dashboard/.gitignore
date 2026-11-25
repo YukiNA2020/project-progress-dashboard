@@ -14,6 +14,9 @@ __pycache__/
 .venv/
 venv/
 
+# 本地交接与临时草稿
+.scratch/
+
 # 系统
 .DS_Store
 Thumbs.db
