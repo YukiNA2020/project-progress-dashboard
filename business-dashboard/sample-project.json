@@ -1,0 +1,131 @@
+{
+  "format": "bizboard",
+  "version": 2,
+  "exported_at": "2026-11-25T15:25:00Z",
+  "note": "示例：只含一个型号（项目 A）。在 Windows 上点右上「恢复」选这个文件导入，然后把型号名、客户名、订单号改成真实的即可。",
+  "data": {
+    "customers": [
+      {
+        "id": "sample-customer-a",
+        "name": "客户A",
+        "alias": "A",
+        "contact": "",
+        "channel": ""
+      }
+    ],
+    "orders": [
+      {
+        "id": "sample-order-a",
+        "customer": "sample-customer-a",
+        "code": "PO-2411",
+        "note": "一单三个型号，共用一份 PI PDF；第 3 轮因其中一个型号涨价，整单 PI 重签"
+      }
+    ],
+    "projects": [
+      {
+        "id": "sample-project-a",
+        "name": "项目 A · 洗碗机",
+        "model": "X220",
+        "customer": "sample-customer-a",
+        "orderId": "sample-order-a",
+        "round": 3,
+        "phase": "滚动计划",
+        "devStage": "工样",
+        "start": "2026-11-15",
+        "end": "2027-01-15",
+        "color": "#465ed8",
+        "leadDays": 28,
+        "shipAt": "2027-01-15",
+        "produceAt": "2026-12-28",
+        "rolloverAt": "",
+        "contact": "",
+        "dept": "",
+        "deptType": "",
+        "contactWay": "",
+        "means": "",
+        "channel": "",
+        "note": "HR过号已过。一单三个型号共用一份 PI PDF，其中一个型号涨价导致整单重签，已到第 3 轮。滚动计划最晚 11/30 提交，工厂 T+4 周才能排产；1 月中下旬发货，1 月底还有第二笔订单，两笔船期不能撞，否则工厂堆货、第三方抽检排队。样机评审仍有延期风险，需要邮件向客户禀报。",
+        "next": "今天催客户把重签的 PI 签章回来；同时跟船代确认两笔订单船期错开。",
+        "updated": "2026-11-25",
+        "done": [
+          "HR过号",
+          "初样、工样评审",
+          " golden sample / 3D 图 / 包装 UI 已给客户"
+        ],
+        "unsure": [
+          "样机评审是否会延期，进而影响滚动计划提交"
+        ],
+        "milestones": [
+          {
+            "id": "sample-ms-1",
+            "date": "2026-11-30",
+            "label": "滚动计划最晚提交",
+            "done": false
+          },
+          {
+            "id": "sample-ms-2",
+            "date": "2027-01-15",
+            "label": "第一笔发货",
+            "done": false
+          },
+          {
+            "id": "sample-ms-3",
+            "date": "2027-01-31",
+            "label": "第二笔订单",
+            "done": false
+          }
+        ],
+        "threads": [
+          {
+            "id": "sample-t-1",
+            "title": "整单 PI 重签（三型号共用一份 PDF）",
+            "side": "客户",
+            "kind": "soft",
+            "since": "2026-11-20",
+            "done": false
+          },
+          {
+            "id": "sample-t-2",
+            "title": "第二笔船期与第一笔错开",
+            "side": "客户",
+            "kind": "soft",
+            "since": "2026-11-22",
+            "done": false
+          },
+          {
+            "id": "sample-t-3",
+            "title": "滚动计划提交后工厂排产确认",
+            "side": "工厂",
+            "kind": "trigger",
+            "since": "2026-11-25",
+            "trigger": "滚动计划提交",
+            "done": false
+          },
+          {
+            "id": "sample-t-4",
+            "title": "抽检报告出来后邮件禀报客户",
+            "side": "工厂",
+            "kind": "trigger",
+            "since": "2026-11-25",
+            "trigger": "抽检报告",
+            "done": false
+          }
+        ],
+        "log": [
+          {
+            "at": "2026-11-25",
+            "source": "口述整理",
+            "text": "项目 A 全流程口述：报价 → 立项 → 初样/工样 → HR过号（已过）→ 滚动计划 T+4 → 生产 → 第三方抽检 → 发运 → 在售；1 月中下旬第一笔发货，1 月底第二笔订单。",
+            "key": ""
+          },
+          {
+            "at": "2026-11-25",
+            "source": "口述整理",
+            "text": "复杂点：一单三型号共用一份 PI PDF，其中一款涨价导致整单第 3 轮重签；船期不能相撞；工厂堆货等抽检；样机评审可能延期。",
+            "key": ""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -248,6 +248,26 @@ def main() -> int:
               json.dumps({"threads": model.get("threads"),
                           "log": model.get("log")}, ensure_ascii=False)[:160])
 
+        sample_path = ROOT / "sample-project.json"
+        sample = json.loads(sample_path.read_text(encoding="utf-8")) if sample_path.exists() else {}
+        sample_data = sample.get("data") or {}
+        sample_project = (sample_data.get("projects") or [{}])[0]
+        from datetime import date, timedelta
+        expected_latest = (date.fromisoformat(sample_project.get("produceAt", "2000-01-01"))
+                           - timedelta(days=int(sample_project.get("leadDays") or 28))).isoformat()
+        check("23. 示例文件只含一个项目且倒推链自洽",
+              sample.get("format") == "bizboard"
+              and len(sample_data.get("projects") or []) == 1
+              and len(sample_data.get("customers") or []) == 1
+              and len(sample_data.get("orders") or []) == 1
+              and sample_project.get("customer") == (sample_data.get("customers") or [{}])[0].get("id")
+              and sample_project.get("orderId") == (sample_data.get("orders") or [{}])[0].get("id")
+              and expected_latest == "2026-11-30"
+              and len(sample_project.get("milestones") or []) == 3
+              and len(sample_project.get("threads") or []) == 4,
+              json.dumps({"counts": {k: len(v) for k, v in sample_data.items()},
+                          "latest": expected_latest}, ensure_ascii=False))
+
     finally:
         process.terminate()
         try:
